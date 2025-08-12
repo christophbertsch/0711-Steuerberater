@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>CORS Test</h1>
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="result"></div>
+
+    <script>
+        async function testUpload() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Test API endpoint
+                const response = await fetch('/api/documents');
+                const data = await response.json();
+                resultDiv.innerHTML = `<p style="color: green;">✅ API works! Found ${data.length} documents</p>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
