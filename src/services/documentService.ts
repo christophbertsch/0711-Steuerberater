@@ -1,7 +1,7 @@
 import { Document } from '../types';
 
 class DocumentService {
-  private baseUrl = 'http://localhost:56534/api';
+  private baseUrl = '/api';
 
   async uploadDocument(file: File, onProgress?: (progress: number) => void): Promise<Document> {
     const formData = new FormData();

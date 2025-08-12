@@ -1,7 +1,7 @@
 import { TaxResearchResult, TaxLawUpdate } from '../types';
 
 class ResearchService {
-  private baseUrl = 'http://localhost:56534/api';
+  private baseUrl = '/api';
 
   async searchTaxLaw(query: string): Promise<TaxResearchResult> {
     const response = await fetch(`${this.baseUrl}/research/search`, {

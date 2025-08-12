@@ -2,7 +2,7 @@ import { TaxDeclaration } from '../types';
 import jsPDF from 'jspdf';
 
 class TaxService {
-  private baseUrl = 'http://localhost:56534/api';
+  private baseUrl = '/api';
 
   async generateTaxDeclaration(data: any): Promise<TaxDeclaration> {
     const response = await fetch(`${this.baseUrl}/tax/generate-declaration`, {

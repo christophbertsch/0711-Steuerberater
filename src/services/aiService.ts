@@ -1,7 +1,7 @@
 import { Document, DocumentAnalysis } from '../types';
 
 class AIService {
-  private baseUrl = 'http://localhost:56534/api';
+  private baseUrl = '/api';
 
   async analyzeDocument(document: Document): Promise<DocumentAnalysis> {
     const response = await fetch(`${this.baseUrl}/ai/analyze`, {
