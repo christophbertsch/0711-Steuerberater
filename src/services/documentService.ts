@@ -19,10 +19,14 @@ class DocumentService {
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          resolve(response);
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            reject(new Error(`Failed to parse response: ${xhr.responseText}`));
+          }
         } else {
-          reject(new Error(`Upload failed: ${xhr.statusText}`));
+          reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText} - ${xhr.responseText}`));
         }
       });
 
@@ -30,7 +34,9 @@ class DocumentService {
         reject(new Error('Upload failed'));
       });
 
-      xhr.open('POST', `${this.baseUrl}/documents/upload`);
+      const uploadUrl = `${this.baseUrl}/documents/upload`;
+      console.log('Uploading to:', uploadUrl);
+      xhr.open('POST', uploadUrl);
       xhr.send(formData);
     });
   }
