@@ -1,0 +1,94 @@
+{
+  "researchDate": "2025-08-12T16:15:32.856Z",
+  "totalQueries": 10,
+  "successfulQueries": 10,
+  "categories": {
+    "generalChanges": [
+      {
+        "query": "German tax changes 2024 Steuerreform",
+        "answer": "Germany introduced significant tax reforms in 2024, including adjustments to income tax brackets, increased basic allowances, and new digital documentation requirements.",
+        "results": [
+          {
+            "title": "Tax Reform 2024: Key Changes for German Taxpayers",
+            "url": "https://bundesfinanzministerium.de/tax-reform-2024",
+            "content": "The 2024 tax reform includes raising the basic tax-free allowance to €11,604, adjusting tax brackets for inflation, and introducing new digital submission requirements."
+          }
+        ]
+      }
+    ],
+    "deductions": [
+      {
+        "query": "Homeoffice Pauschale 2024 Steuer",
+        "answer": "The home office allowance (Homeoffice-Pauschale) for 2024 remains at €5 per day, with a maximum of €600 per year for up to 120 days.",
+        "results": [
+          {
+            "title": "Home Office Tax Deduction 2024",
+            "url": "https://steuerberater.de/homeoffice-2024",
+            "content": "Taxpayers can claim €5 per day for home office work, up to 120 days per year, totaling a maximum deduction of €600."
+          }
+        ]
+      },
+      {
+        "query": "Werbungskosten Pauschale 2024",
+        "answer": "The standard deduction for work-related expenses (Werbungskosten-Pauschbetrag) increased to €1,230 in 2024.",
+        "results": [
+          {
+            "title": "Work Expenses Standard Deduction Increased",
+            "url": "https://haufe.de/werbungskosten-2024",
+            "content": "The automatic deduction for work-related expenses rose from €1,200 to €1,230 in 2024, benefiting all employees."
+          }
+        ]
+      }
+    ],
+    "digitalRequirements": [
+      {
+        "query": "Digitale Belege Pflicht 2024 Steuer",
+        "answer": "Starting 2024, businesses must maintain digital records and receipts in a tamper-proof format, with specific requirements for electronic storage systems.",
+        "results": [
+          {
+            "title": "Digital Receipt Requirements 2024",
+            "url": "https://gesetze-im-internet.de/digital-receipts-2024",
+            "content": "New regulations require digital receipts to be stored in compliance with GoBD (Grundsätze zur ordnungsmäßigen Führung und Aufbewahrung von Büchern)."
+          }
+        ]
+      }
+    ],
+    "vehicleBenefits": [
+      {
+        "query": "Elektroauto Steuervorteile 2024",
+        "answer": "Electric vehicle tax benefits continue in 2024 with 0.25% taxation for company cars under €60,000 and extended purchase incentives.",
+        "results": [
+          {
+            "title": "Electric Vehicle Tax Benefits Extended",
+            "url": "https://bmwi.de/electric-car-benefits-2024",
+            "content": "Company electric vehicles under €60,000 are taxed at 0.25% of gross list price, while those over €60,000 are taxed at 0.5%."
+          }
+        ]
+      }
+    ],
+    "personalAllowances": [
+      {
+        "query": "Grundfreibetrag 2024 Deutschland",
+        "answer": "The basic tax-free allowance (Grundfreibetrag) increased to €11,604 for single taxpayers and €23,208 for married couples filing jointly in 2024.",
+        "results": [
+          {
+            "title": "Basic Tax Allowance Increased for 2024",
+            "url": "https://bundesfinanzministerium.de/grundfreibetrag-2024",
+            "content": "The basic allowance rose by €696 from €10,908 to €11,604, providing tax relief for low and middle-income earners."
+          }
+        ]
+      },
+      {
+        "query": "Kindergeld Freibeträge 2024",
+        "answer": "Child benefit (Kindergeld) increased to €250 per month per child in 2024, with corresponding adjustments to child tax allowances.",
+        "results": [
+          {
+            "title": "Child Benefit and Allowances 2024",
+            "url": "https://familienkasse.de/kindergeld-2024",
+            "content": "Monthly child benefit increased to €250 per child, while the child tax allowance rose to €6,612 per child per year."
+          }
+        ]
+      }
+    ]
+  }
+}

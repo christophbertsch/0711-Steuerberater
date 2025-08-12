@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml-data xmlns="http://www.lucom.com/ffw/xml-data-1.0.xsd">
+	<form>catalog://Steuerformulare/est/est24/034037_24</form>
+	<instance>
+		<datarow>
+			<element id="ID_USER">.anonymous</element>
+			<element id="k_hinweis">false</element>
+		</datarow>
+	</instance>
+</xml-data>
+
+

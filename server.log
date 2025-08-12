@@ -1,0 +1,2 @@
+Tax & Law AI Expert server running on http://localhost:56534
+Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
