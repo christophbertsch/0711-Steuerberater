@@ -13,21 +13,31 @@ const dbConfig = {
   connectionTimeoutMillis: 2000,
 };
 
-// Create connection pool
-const pool = new Pool(dbConfig);
+// Only create connection pool if credentials are provided
+let pool = null;
+if (process.env.DB_USER && process.env.DB_PASSWORD) {
+  pool = new Pool(dbConfig);
+} else {
+  console.log('Database credentials not provided, database operations will be disabled');
+}
 
 // Test connection
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
-});
+if (pool) {
+  pool.on('connect', () => {
+    console.log('Connected to PostgreSQL database');
+  });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+    process.exit(-1);
+  });
+}
 
 // Initialize database schema
 async function initializeDatabase() {
+  if (!pool) {
+    throw new Error('Database pool not initialized - credentials not provided');
+  }
   const client = await pool.connect();
   try {
     // Create tables if they don't exist
@@ -95,10 +105,14 @@ async function initializeDatabase() {
 // Database query functions
 const db = {
   // Generic query function
-  query: (text, params) => pool.query(text, params),
+  query: (text, params) => {
+    if (!pool) throw new Error('Database not available');
+    return pool.query(text, params);
+  },
 
   // Document operations
   async createDocument(documentData) {
+    if (!pool) throw new Error('Database not available');
     const { name, originalFilename, fileType, fileSize, blobUrl, blobPathname, extractedText, documentType } = documentData;
     const result = await pool.query(
       `INSERT INTO documents (name, original_filename, file_type, file_size, blob_url, blob_pathname, extracted_text, document_type)
@@ -109,21 +123,25 @@ const db = {
   },
 
   async getDocuments() {
+    if (!pool) throw new Error('Database not available');
     const result = await pool.query('SELECT * FROM documents ORDER BY upload_date DESC');
     return result.rows;
   },
 
   async getDocumentById(id) {
+    if (!pool) throw new Error('Database not available');
     const result = await pool.query('SELECT * FROM documents WHERE id = $1', [id]);
     return result.rows[0];
   },
 
   async deleteDocument(id) {
+    if (!pool) throw new Error('Database not available');
     await pool.query('DELETE FROM documents WHERE id = $1', [id]);
   },
 
   // Analysis operations
   async createAnalysis(analysisData) {
+    if (!pool) throw new Error('Database not available');
     const { documentId, documentType, taxRelevance, confidence, expertOpinion, extractedData, suggestedActions } = analysisData;
     const result = await pool.query(
       `INSERT INTO document_analyses (document_id, document_type, tax_relevance, confidence, expert_opinion, extracted_data, suggested_actions)
@@ -134,12 +152,14 @@ const db = {
   },
 
   async getAnalysisByDocumentId(documentId) {
+    if (!pool) throw new Error('Database not available');
     const result = await pool.query('SELECT * FROM document_analyses WHERE document_id = $1', [documentId]);
     return result.rows[0];
   },
 
   // Tax research operations
   async saveTaxResearch(query, results) {
+    if (!pool) throw new Error('Database not available');
     await pool.query(
       'INSERT INTO tax_research (query, results) VALUES ($1, $2)',
       [query, JSON.stringify(results)]
@@ -147,6 +167,7 @@ const db = {
   },
 
   async getTaxResearch(query) {
+    if (!pool) throw new Error('Database not available');
     const result = await pool.query('SELECT results FROM tax_research WHERE query = $1 ORDER BY created_at DESC LIMIT 1', [query]);
     return result.rows[0]?.results;
   }
