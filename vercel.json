@@ -19,5 +19,10 @@
       "src": "/(.*)",
       "dest": "/dist/$1"
     }
-  ]
+  ],
+  "functions": {
+    "server.js": {
+      "maxDuration": 30
+    }
+  }
 }

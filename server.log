@@ -2,7 +2,7 @@
 > tax-law-ai-app@1.0.0 server
 > node server.js
 
-[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
 OpenAI API key not configured - AI analysis will use mock responses
 Tax & Law AI Expert server running on http://localhost:56534
 Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
