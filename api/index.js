@@ -1359,6 +1359,24 @@ app.post('/api/test-upload', (req, res) => {
   res.json({ message: 'Test endpoint working', headers: req.headers });
 });
 
+// Test multer configuration
+app.get('/api/test-multer-config', (req, res) => {
+  try {
+    console.log('Testing multer configuration');
+    console.log('Multer:', typeof multer);
+    console.log('Upload middleware:', typeof upload);
+    res.json({ 
+      message: 'Multer config test', 
+      multerType: typeof multer,
+      uploadType: typeof upload,
+      multerVersion: multer.version || 'unknown'
+    });
+  } catch (error) {
+    console.error('Multer config error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test multer upload endpoint
 app.post('/api/test-multer', upload.single('document'), (req, res) => {
   console.log('Test multer endpoint hit');
