@@ -1359,6 +1359,21 @@ app.post('/api/test-upload', (req, res) => {
   res.json({ message: 'Test endpoint working', headers: req.headers });
 });
 
+// Test multer upload endpoint
+app.post('/api/test-multer', upload.single('document'), (req, res) => {
+  console.log('Test multer endpoint hit');
+  console.log('File:', req.file);
+  console.log('Body:', req.body);
+  res.json({ 
+    message: 'Multer test working', 
+    file: req.file ? {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : null
+  });
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
