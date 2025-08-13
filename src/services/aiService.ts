@@ -11,7 +11,7 @@ class AIService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ documentId: document.id }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(20000)
       });
 
       if (!response.ok) {
