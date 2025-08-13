@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, Calculator, Search, Brain, FileCheck, Users, Cloud } from 'lucide-react';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentAnalysis from './components/DocumentAnalysis';
@@ -7,10 +7,25 @@ import TaxResearch from './components/TaxResearch';
 import SpecializedAgents from './components/SpecializedAgents';
 import BlobStorageManager from './components/BlobStorageManager';
 import { Document } from './types';
+import { documentService } from './services/documentService';
 
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [activeTab, setActiveTab] = useState('upload');
+
+  // Fetch existing documents on app load
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        const existingDocuments = await documentService.getDocuments();
+        setDocuments(existingDocuments);
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+      }
+    };
+    
+    fetchDocuments();
+  }, []);
 
   const handleDocumentUpload = (newDocuments: Document[]) => {
     setDocuments(prev => [...prev, ...newDocuments]);
