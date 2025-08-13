@@ -68,49 +68,97 @@ const upload = multer({
 let documents = [];
 let documentAnalyses = {};
 
-// Helper function to extract text from different file types
+// Helper function to extract text from buffer during upload
+async function extractTextFromBuffer(buffer, mimeType, fileName) {
+  try {
+    if (mimeType === 'application/pdf') {
+      console.log(`Extracting text from PDF buffer: ${fileName}`);
+      
+      try {
+        // Use pdfjs-dist for PDF text extraction
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+        
+        // Load PDF document from buffer
+        const uint8Array = new Uint8Array(buffer);
+        const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+        const pdf = await loadingTask.promise;
+        
+        let fullText = '';
+        
+        // Extract text from all pages
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          fullText += `Page ${pageNum}:\n${pageText}\n\n`;
+        }
+        
+        if (fullText.trim()) {
+          return fullText.trim();
+        } else {
+          return `PDF Document: ${fileName} - No extractable text found (possibly image-based PDF)`;
+        }
+        
+      } catch (pdfError) {
+        console.error('PDF parsing error:', pdfError);
+        return `PDF Document: ${fileName} - Text extraction failed: ${pdfError.message}`;
+      }
+    } else if (mimeType.includes('xml') || fileName.endsWith('.xml')) {
+      return buffer.toString('utf-8');
+    } else if (mimeType.startsWith('text/')) {
+      return buffer.toString('utf-8');
+    } else {
+      return `File: ${fileName} - Text extraction not supported for ${mimeType}`;
+    }
+  } catch (error) {
+    console.error('Text extraction error:', error);
+    return `File: ${fileName} - Text extraction failed: ${error.message}`;
+  }
+}
+
+// Helper function to extract text from different file types (legacy - for existing files)
 async function extractTextFromFile(blobUrl, mimeType, fileName, fileSize) {
   try {
     if (mimeType === 'application/pdf') {
-      // For now, provide enhanced metadata analysis until PDF parsing is stable
-      console.log(`Processing PDF document: ${fileName}`);
+      console.log(`Extracting text from PDF: ${fileName}`);
       
-      // Extract useful information from filename and provide context
-      const isReceipt = fileName.toLowerCase().includes('quittung') || fileName.toLowerCase().includes('receipt');
-      const isDonation = fileName.toLowerCase().includes('spenden') || fileName.toLowerCase().includes('donation');
-      const isInvoice = fileName.toLowerCase().includes('rechnung') || fileName.toLowerCase().includes('invoice');
-      const year = fileName.match(/20\d{2}/)?.[0] || '2024';
-      
-      let documentContext = `PDF Document: ${fileName} (${fileSize} bytes, Jahr: ${year})\n\n`;
-      
-      if (isDonation) {
-        documentContext += `Dies ist eine Spendenquittung. Typische Inhalte:\n`;
-        documentContext += `- Name der gemeinnützigen Organisation\n`;
-        documentContext += `- Spendenbetrag und Datum\n`;
-        documentContext += `- Bestätigung der Gemeinnützigkeit\n`;
-        documentContext += `- Verwendungszweck der Spende\n`;
-        documentContext += `- Unterschrift und Stempel der Organisation\n\n`;
-        documentContext += `Steuerliche Relevanz: Spenden können als Sonderausgaben abgesetzt werden.`;
-      } else if (isReceipt) {
-        documentContext += `Dies ist eine Quittung/Beleg. Typische Inhalte:\n`;
-        documentContext += `- Datum und Betrag der Zahlung\n`;
-        documentContext += `- Art der Leistung oder des Produkts\n`;
-        documentContext += `- Zahlungsempfänger\n`;
-        documentContext += `- Mehrwertsteuer-Informationen\n\n`;
-        documentContext += `Steuerliche Relevanz: Kann als Betriebsausgabe oder Werbungskosten relevant sein.`;
-      } else if (isInvoice) {
-        documentContext += `Dies ist eine Rechnung. Typische Inhalte:\n`;
-        documentContext += `- Rechnungsnummer und Datum\n`;
-        documentContext += `- Leistungsbeschreibung\n`;
-        documentContext += `- Netto- und Bruttobetrag\n`;
-        documentContext += `- Mehrwertsteuer-Ausweis\n\n`;
-        documentContext += `Steuerliche Relevanz: Wichtig für Umsatzsteuer und Betriebsausgaben.`;
-      } else {
-        documentContext += `Dies ist ein steuerrelevantes Dokument basierend auf dem Dateinamen.\n`;
-        documentContext += `Für eine detaillierte Analyse wäre eine manuelle Prüfung des Dokumentinhalts erforderlich.`;
+      try {
+        // Use pdfjs-dist for PDF text extraction (serverless-compatible)
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+        
+        // Fetch PDF data
+        const response = await fetch(blobUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Load PDF document
+        const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+        const pdf = await loadingTask.promise;
+        
+        let fullText = '';
+        
+        // Extract text from all pages
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          fullText += pageText + '\n';
+        }
+        
+        if (fullText.trim()) {
+          console.log(`Successfully extracted ${fullText.length} characters from PDF`);
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${fullText.trim()}`;
+        } else {
+          console.log('PDF appears to be empty or image-based');
+          // Fallback to intelligent metadata analysis
+          return await getIntelligentMetadataAnalysis(fileName, fileSize);
+        }
+        
+      } catch (pdfError) {
+        console.error('PDF parsing error:', pdfError);
+        // Fallback to intelligent metadata analysis
+        return await getIntelligentMetadataAnalysis(fileName, fileSize);
       }
-      
-      return documentContext;
     } else if (mimeType.startsWith('image/')) {
       // For images, you would use OCR like Tesseract
       return 'OCR text extraction would be implemented here';
@@ -363,6 +411,23 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       contentType: req.file.mimetype,
     });
 
+    // Extract text content immediately during upload
+    let extractedText = '';
+    try {
+      extractedText = await extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname);
+      console.log(`Successfully extracted ${extractedText.length} characters from ${req.file.originalname}`);
+    } catch (extractError) {
+      console.error('Text extraction failed during upload:', extractError);
+      extractedText = `Text extraction failed for ${req.file.originalname}. Manual review required.`;
+    }
+
+    // Store extracted text as a separate blob for persistence
+    const textFileName = `documents/${uniqueSuffix}-${req.file.originalname}.txt`;
+    const textBlob = await put(textFileName, extractedText, {
+      access: 'public',
+      contentType: 'text/plain',
+    });
+
     const document = {
       id: Date.now().toString(),
       name: req.file.originalname,
@@ -370,7 +435,9 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       size: req.file.size,
       uploadDate: new Date(),
       blobUrl: blob.url,
-      blobPathname: blob.pathname
+      blobPathname: blob.pathname,
+      textBlobUrl: textBlob.url,
+      extractedText: extractedText.substring(0, 1000) // Store first 1000 chars in memory for quick access
     };
 
     documents.push(document);
@@ -496,8 +563,28 @@ app.post('/api/ai/analyze', async (req, res) => {
       return res.json(documentAnalyses[documentId]);
     }
 
-    // Extract text from document
-    const content = await extractTextFromFile(document.blobUrl || document.filePath, document.type, document.name, document.size);
+    // Get text content - use pre-extracted text if available, otherwise extract on-demand
+    let content = '';
+    if (document.textBlobUrl) {
+      // Use pre-extracted text from upload
+      try {
+        const textResponse = await fetch(document.textBlobUrl);
+        content = await textResponse.text();
+        console.log(`Using pre-extracted text (${content.length} characters) for ${document.name}`);
+      } catch (textError) {
+        console.error('Failed to fetch pre-extracted text:', textError);
+        // Fallback to on-demand extraction
+        content = await extractTextFromFile(document.blobUrl || document.filePath, document.type, document.name, document.size);
+      }
+    } else if (document.extractedText) {
+      // Use text stored in document object (for backward compatibility)
+      content = document.extractedText;
+      console.log(`Using stored extracted text for ${document.name}`);
+    } else {
+      // Fallback to on-demand extraction for old documents
+      content = await extractTextFromFile(document.blobUrl || document.filePath, document.type, document.name, document.size);
+      console.log(`Using on-demand text extraction for ${document.name}`);
+    }
     
     // Classify document
     const documentType = await classifyDocument(content, document.name);
