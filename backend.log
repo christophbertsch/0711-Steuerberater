@@ -1,4 +1,4 @@
-[dotenv@17.2.1] injecting env (6) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.1] injecting env (5) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
 ❌ OpenAI API key not configured - AI analysis will use mock responses
 Tax & Law AI Expert server running on http://localhost:3001
 Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
@@ -12,68 +12,31 @@ Starting text extraction for test_lohnsteuer.pdf (application/pdf)
 Processing PDF buffer: test_lohnsteuer.pdf (1593 bytes)
 🔍 Attempting reliable PDF text extraction...
 🔍 Starting reliable PDF text extraction for: test_lohnsteuer.pdf
-🐍 Attempting Python PyPDF2 script...
-✅ Python script extracted 204 characters from 1 pages
-📝 First 100 chars: Lohnsteuerbescheinigung 2024
-Arbeitnehmer: Max Mustermann
-Arbeitgeber: Musterfirma GmbH
-Bruttoarbeit...
-✅ Successfully extracted 204 characters from PDF
-Successfully extracted 258 characters from test_lohnsteuer.pdf
+🚫 Python extraction disabled in production environment
+📚 Attempting pdf-parse extraction...
+⚠️ pdf-parse failed: ENOENT: no such file or directory, open './test/data/05-versions-space.pdf'
+🔄 Retrying pdf-parse with different options...
+⚠️ pdf-parse retry also failed: ENOENT: no such file or directory, open './test/data/05-versions-space.pdf'
+🔍 Attempting basic text extraction...
+✅ Basic extraction found 97 characters
+✅ Successfully extracted 97 characters from PDF
+Successfully extracted 151 characters from test_lohnsteuer.pdf
 Attempting to save document to database
-Document saved to database with ID: 9
-📊 Storing document 9 in Qdrant...
+Document saved to database with ID: 10
+📊 Storing document 10 in Qdrant...
 Error generating embedding: TypeError: Cannot read properties of null (reading 'embeddings')
     at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
     at storeDocumentInQdrant (file:///workspace/0711-Steuerberater/api/index.js:134:29)
-    at file:///workspace/0711-Steuerberater/api/index.js:900:19
+    at file:///workspace/0711-Steuerberater/api/index.js:938:19
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-❌ Error storing document 9 in Qdrant: TypeError: Cannot read properties of null (reading 'embeddings')
+❌ Error storing document 10 in Qdrant: TypeError: Cannot read properties of null (reading 'embeddings')
     at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
     at storeDocumentInQdrant (file:///workspace/0711-Steuerberater/api/index.js:134:29)
-    at file:///workspace/0711-Steuerberater/api/index.js:900:19
+    at file:///workspace/0711-Steuerberater/api/index.js:938:19
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
 Failed to store in Qdrant (non-critical): TypeError: Cannot read properties of null (reading 'embeddings')
     at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
     at storeDocumentInQdrant (file:///workspace/0711-Steuerberater/api/index.js:134:29)
-    at file:///workspace/0711-Steuerberater/api/index.js:900:19
+    at file:///workspace/0711-Steuerberater/api/index.js:938:19
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
 Sending response
-🔍 Semantic search request: "Lohnsteuer"
-🔍 Searching Qdrant for: "Lohnsteuer"
-Error generating embedding: TypeError: Cannot read properties of null (reading 'embeddings')
-    at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
-    at searchDocumentsInQdrant (file:///workspace/0711-Steuerberater/api/index.js:172:34)
-    at file:///workspace/0711-Steuerberater/api/index.js:1075:35
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
-    at Route.dispatch (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at /workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
-    at Function.process_params (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
-❌ Error searching Qdrant: TypeError: Cannot read properties of null (reading 'embeddings')
-    at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
-    at searchDocumentsInQdrant (file:///workspace/0711-Steuerberater/api/index.js:172:34)
-    at file:///workspace/0711-Steuerberater/api/index.js:1075:35
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
-    at Route.dispatch (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at /workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
-    at Function.process_params (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
-Qdrant search failed: TypeError: Cannot read properties of null (reading 'embeddings')
-    at generateEmbedding (file:///workspace/0711-Steuerberater/api/index.js:117:35)
-    at searchDocumentsInQdrant (file:///workspace/0711-Steuerberater/api/index.js:172:34)
-    at file:///workspace/0711-Steuerberater/api/index.js:1075:35
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
-    at Route.dispatch (/workspace/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
-    at Layer.handle [as handle_request] (/workspace/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
-    at /workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
-    at Function.process_params (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
-    at next (/workspace/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
-Falling back to database text search...
-Connected to PostgreSQL database
-📝 Fallback search found 4 documents

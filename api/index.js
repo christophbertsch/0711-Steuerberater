@@ -235,60 +235,70 @@ async function extractPDFTextReliable(buffer, fileName) {
   try {
     console.log(`🔍 Starting reliable PDF text extraction for: ${fileName}`);
     
-    // Method 1: Try Python PyPDF2 script first (most reliable)
-    try {
-      console.log('🐍 Attempting Python PyPDF2 script...');
-      
-      // spawn and path already imported at top
-      
-      const scriptPath = path.join(__dirname, '..', 'scripts', 'extract_pdf.py');
-      const base64Data = buffer.toString('base64');
-      
-      const result = await new Promise((resolve, reject) => {
-        const python = spawn('python3', [scriptPath]);
-        let output = '';
-        let errorOutput = '';
+    // Method 1: Try Python PyPDF2 script first (most reliable) - only in development
+    if (process.env.NODE_ENV === 'development' || process.env.ENABLE_PYTHON_EXTRACTION === 'true') {
+      try {
+        console.log('🐍 Attempting Python PyPDF2 script...');
         
-        python.stdout.on('data', (data) => {
-          output += data.toString();
-        });
+        // spawn and path already imported at top
         
-        python.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
+        const scriptPath = path.join(__dirname, '..', 'scripts', 'extract_pdf.py');
+        const base64Data = buffer.toString('base64');
         
-        python.on('close', (code) => {
-          if (code === 0) {
-            try {
-              const result = JSON.parse(output);
-              resolve(result);
-            } catch (parseError) {
-              reject(new Error(`Failed to parse Python script output: ${parseError.message}`));
+        const result = await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Python script timeout after 10 seconds'));
+          }, 10000);
+          
+          const python = spawn('python3', [scriptPath]);
+          let output = '';
+          let errorOutput = '';
+          
+          python.stdout.on('data', (data) => {
+            output += data.toString();
+          });
+          
+          python.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+          });
+          
+          python.on('close', (code) => {
+            clearTimeout(timeout);
+            if (code === 0) {
+              try {
+                const result = JSON.parse(output);
+                resolve(result);
+              } catch (parseError) {
+                reject(new Error(`Failed to parse Python script output: ${parseError.message}`));
+              }
+            } else {
+              reject(new Error(`Python script failed with code ${code}: ${errorOutput}`));
             }
-          } else {
-            reject(new Error(`Python script failed with code ${code}: ${errorOutput}`));
-          }
+          });
+          
+          python.on('error', (error) => {
+            clearTimeout(timeout);
+            reject(new Error(`Failed to start Python script: ${error.message}`));
+          });
+          
+          // Send base64 data to Python script
+          python.stdin.write(base64Data);
+          python.stdin.end();
         });
         
-        python.on('error', (error) => {
-          reject(new Error(`Failed to start Python script: ${error.message}`));
-        });
+        if (result.success && result.text && result.text.trim().length > 10) {
+          console.log(`✅ Python script extracted ${result.text_length} characters from ${result.pages} pages`);
+          console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
+          return result.text.trim();
+        } else {
+          console.log(`⚠️ Python script failed: ${result.error}`);
+        }
         
-        // Send base64 data to Python script
-        python.stdin.write(base64Data);
-        python.stdin.end();
-      });
-      
-      if (result.success && result.text && result.text.trim().length > 10) {
-        console.log(`✅ Python script extracted ${result.text_length} characters from ${result.pages} pages`);
-        console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
-        return result.text.trim();
-      } else {
-        console.log(`⚠️ Python script failed: ${result.error}`);
+      } catch (pythonError) {
+        console.log('⚠️ Python script unavailable:', pythonError.message);
       }
-      
-    } catch (pythonError) {
-      console.log('⚠️ Python script unavailable:', pythonError.message);
+    } else {
+      console.log('🚫 Python extraction disabled in production environment');
     }
     
     // Method 2: Try external PDF service as fallback (if configured)
@@ -327,15 +337,22 @@ async function extractPDFTextReliable(buffer, fileName) {
       }
     }
     
-    // Method 3: Try pdf-parse as fallback
+    // Method 3: Try pdf-parse as fallback (primary method in production)
     try {
-      console.log('📚 Attempting pdf-parse fallback...');
+      console.log('📚 Attempting pdf-parse extraction...');
       const pdfParse = await import('pdf-parse');
       
-      const pdfData = await pdfParse.default(buffer);
+      // Configure pdf-parse options for better extraction
+      const options = {
+        normalizeWhitespace: false,
+        disableCombineTextItems: false
+      };
+      
+      const pdfData = await pdfParse.default(buffer, options);
       
       if (pdfData.text && pdfData.text.trim().length > 10) {
         console.log(`✅ pdf-parse extracted ${pdfData.text.length} characters`);
+        console.log(`📝 First 100 chars: ${pdfData.text.substring(0, 100)}...`);
         return pdfData.text.trim();
       } else {
         console.log('⚠️ pdf-parse returned minimal text');
@@ -343,6 +360,27 @@ async function extractPDFTextReliable(buffer, fileName) {
       
     } catch (pdfParseError) {
       console.log('⚠️ pdf-parse failed:', pdfParseError.message);
+      
+      // Try with different options if first attempt fails
+      try {
+        console.log('🔄 Retrying pdf-parse with different options...');
+        const pdfParse = await import('pdf-parse');
+        
+        const fallbackOptions = {
+          normalizeWhitespace: true,
+          disableCombineTextItems: true
+        };
+        
+        const pdfData = await pdfParse.default(buffer, fallbackOptions);
+        
+        if (pdfData.text && pdfData.text.trim().length > 5) {
+          console.log(`✅ pdf-parse retry extracted ${pdfData.text.length} characters`);
+          return pdfData.text.trim();
+        }
+        
+      } catch (retryError) {
+        console.log('⚠️ pdf-parse retry also failed:', retryError.message);
+      }
     }
     
     // Method 4: Basic text extraction as last resort
