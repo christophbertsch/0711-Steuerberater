@@ -1571,7 +1571,14 @@ function calculateGermanTaxRate(income) {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    version: '2.0.0-enhanced-database',
+    storage: 'PostgreSQL Database',
+    deployment: 'Enhanced Backend with Content Analysis',
+    features: ['Multi-format support', 'OCR capabilities', 'Content-based analysis', 'German tax classification']
+  });
 });
 
 // Test endpoint to debug upload issues
