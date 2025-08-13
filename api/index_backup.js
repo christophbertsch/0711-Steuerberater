@@ -57,12 +57,12 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf|docx|xml|txt/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype) || file.mimetype.startsWith('text/');
+    const mimetype = allowedTypes.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only images, PDFs, Word documents, XML files, and text files are allowed'));
+      cb(new Error('Only images, PDFs, Word documents, and XML files are allowed'));
     }
   }
 });
@@ -1094,6 +1094,78 @@ function calculateExtractionConfidence(text) {
   
   return Math.min(confidence, 1);
 }
+
+// List all files in Vercel Blob Storage
+app.get('/api/blob/list', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
+      });
+    }
+
+    const { blobs } = await list();
+    res.json(blobs);
+  } catch (error) {
+    console.error('Blob list error:', error);
+    res.status(500).json({ error: 'Failed to list blob files: ' + error.message });
+  }
+});
+
+// Migrate existing local files to Vercel Blob Storage
+app.post('/api/blob/migrate', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
+      });
+    }
+
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      return res.json({ message: 'No local uploads directory found', migratedFiles: [] });
+    }
+
+    const files = fs.readdirSync(uploadsDir);
+    const migratedFiles = [];
+
+    for (const file of files) {
+      const filePath = path.join(uploadsDir, file);
+      const stats = fs.statSync(filePath);
+      
+      if (stats.isFile()) {
+        try {
+          const fileBuffer = fs.readFileSync(filePath);
+          const fileName = `documents/migrated-${Date.now()}-${file}`;
+          
+          // Upload to Vercel Blob
+          const blob = await put(fileName, fileBuffer, {
+            access: 'public',
+          });
+
+          migratedFiles.push({
+            originalPath: filePath,
+            blobUrl: blob.url,
+            fileName: file,
+            size: stats.size
+          });
+
+          console.log(`Migrated ${file} to Vercel Blob: ${blob.url}`);
+        } catch (error) {
+          console.error(`Failed to migrate ${file}:`, error);
+        }
+      }
+    }
+
+    res.json({ 
+      message: `Successfully migrated ${migratedFiles.length} files to Vercel Blob Storage`,
+      migratedFiles 
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Migration failed: ' + error.message });
+  }
+});
 
 // Get recent tax updates for 2024
 app.get('/api/research/updates/2024', async (req, res) => {

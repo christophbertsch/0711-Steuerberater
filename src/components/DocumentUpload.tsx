@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, Image, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Image, X, CheckCircle, AlertCircle, RefreshCw, Eye } from 'lucide-react';
 import { Document } from '../types';
 import { documentService } from '../services/documentService';
+import { documentProcessor, ProcessedDocument } from '../services/documentProcessor';
 
 interface DocumentUploadProps {
   documents: Document[];
@@ -12,6 +13,8 @@ interface DocumentUploadProps {
 const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUpload }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [processingStatus, setProcessingStatus] = useState<Record<string, string>>({});
+  const [reprocessing, setReprocessing] = useState<Record<string, boolean>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true);
@@ -20,22 +23,58 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUp
     for (const file of acceptedFiles) {
       try {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+        setProcessingStatus(prev => ({ ...prev, [file.name]: 'Uploading...' }));
         
-        const document = await documentService.uploadDocument(file, (progress) => {
-          setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-        });
+        // Use the enhanced document processor
+        const processedDocument = await documentProcessor.processDocument(file);
         
-        newDocuments.push(document);
+        newDocuments.push(processedDocument);
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+        setProcessingStatus(prev => ({ ...prev, [file.name]: 'Completed' }));
       } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
+        console.error(`Error processing ${file.name}:`, error);
+        setProcessingStatus(prev => ({ ...prev, [file.name]: 'Failed' }));
+        
+        // Fallback to basic upload if processing fails
+        try {
+          const document = await documentService.uploadDocument(file, (progress) => {
+            setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
+          });
+          newDocuments.push(document);
+          setProcessingStatus(prev => ({ ...prev, [file.name]: 'Basic upload completed' }));
+        } catch (fallbackError) {
+          console.error(`Fallback upload also failed for ${file.name}:`, fallbackError);
+        }
       }
     }
 
     onDocumentUpload(newDocuments);
     setUploading(false);
     setUploadProgress({});
+    setProcessingStatus({});
   }, [onDocumentUpload]);
+
+  const reprocessDocument = async (documentId: string, useOCR: boolean = false) => {
+    setReprocessing(prev => ({ ...prev, [documentId]: true }));
+    
+    try {
+      const reprocessedDoc = await documentProcessor.reprocessDocument(documentId, {
+        useOCR,
+        enhancedExtraction: true
+      });
+      
+      // Update the document in the list
+      const updatedDocuments = documents.map(doc => 
+        doc.id === documentId ? { ...doc, ...reprocessedDoc } : doc
+      );
+      onDocumentUpload(updatedDocuments);
+      
+    } catch (error) {
+      console.error('Error reprocessing document:', error);
+    } finally {
+      setReprocessing(prev => ({ ...prev, [documentId]: false }));
+    }
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -103,7 +142,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUp
 
         {uploading && (
           <div className="mt-4 space-y-2">
-            <h3 className="font-medium text-gray-900">Dateien werden hochgeladen...</h3>
+            <h3 className="font-medium text-gray-900">Dateien werden verarbeitet...</h3>
             {Object.entries(uploadProgress).map(([filename, progress]) => (
               <div key={filename} className="flex items-center space-x-3">
                 <span className="text-sm text-gray-600 flex-1">{filename}</span>
@@ -114,6 +153,9 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUp
                   />
                 </div>
                 <span className="text-sm text-gray-500">{progress}%</span>
+                <span className="text-xs text-gray-400">
+                  {processingStatus[filename] || 'Processing...'}
+                </span>
               </div>
             ))}
           </div>
@@ -133,19 +175,84 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUp
               >
                 <div className="flex items-center space-x-3">
                   {getFileIcon(doc.type)}
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-gray-900">{doc.name}</h4>
                     <p className="text-sm text-gray-500">
                       {formatFileSize(doc.size)} • Hochgeladen am {new Date(doc.uploadDate).toLocaleDateString()}
                     </p>
+                    
+                    {/* Content analysis info */}
+                    {(doc as ProcessedDocument).contentAnalysis && (
+                      <div className="mt-1 flex items-center space-x-2 text-xs">
+                        <span className={`px-2 py-1 rounded-full ${
+                          (doc as ProcessedDocument).contentAnalysis.hasText 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {(doc as ProcessedDocument).contentAnalysis.hasText ? 'Text erkannt' : 'Kein Text'}
+                        </span>
+                        
+                        {(doc as ProcessedDocument).contentAnalysis.language !== 'unknown' && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                            {(doc as ProcessedDocument).contentAnalysis.language.toUpperCase()}
+                          </span>
+                        )}
+                        
+                        {(doc as ProcessedDocument).contentAnalysis.isScanned && (
+                          <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
+                            Gescannt
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Text preview */}
+                    {(doc as ProcessedDocument).extractedText && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600 max-h-20 overflow-y-auto">
+                        <strong>Textvorschau:</strong><br />
+                        {(doc as ProcessedDocument).extractedText.substring(0, 200)}
+                        {(doc as ProcessedDocument).extractedText.length > 200 && '...'}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {doc.analysis ? (
+                  {(doc as ProcessedDocument).contentAnalysis ? (
+                    <div className="flex items-center space-x-1">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span className="text-xs text-green-600">
+                        {Math.round(((doc as ProcessedDocument).contentAnalysis.confidence * 100))}% confident
+                      </span>
+                    </div>
+                  ) : doc.analysis ? (
                     <CheckCircle className="h-5 w-5 text-green-500" />
                   ) : (
                     <AlertCircle className="h-5 w-5 text-yellow-500" />
                   )}
+                  
+                  {/* Reprocess button */}
+                  <button
+                    onClick={() => reprocessDocument(doc.id, false)}
+                    disabled={reprocessing[doc.id]}
+                    className="p-1 text-blue-400 hover:text-blue-600 disabled:opacity-50"
+                    title="Reprocess document"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${reprocessing[doc.id] ? 'animate-spin' : ''}`} />
+                  </button>
+                  
+                  {/* OCR reprocess button for images and scanned PDFs */}
+                  {(doc.type.startsWith('image/') || 
+                    ((doc as ProcessedDocument).contentAnalysis?.isScanned)) && (
+                    <button
+                      onClick={() => reprocessDocument(doc.id, true)}
+                      disabled={reprocessing[doc.id]}
+                      className="p-1 text-purple-400 hover:text-purple-600 disabled:opacity-50"
+                      title="Reprocess with OCR"
+                    >
+                      <Eye className={`h-4 w-4 ${reprocessing[doc.id] ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                  
                   <button
                     onClick={() => removeDocument(doc.id)}
                     className="p-1 text-gray-400 hover:text-red-500"

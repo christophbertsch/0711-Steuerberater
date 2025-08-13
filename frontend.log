@@ -2,9 +2,10 @@
 > tax-law-ai-app@1.0.0 dev
 > vite --host 0.0.0.0 --port 54628
 
+Port 54628 is in use, trying another one...
 
-  VITE v4.5.14  ready in 200 ms
+  VITE v4.5.14  ready in 185 ms
 
-  ➜  Local:   http://localhost:54628/
-  ➜  Network: http://172.17.0.4:54628/
+  ➜  Local:   http://localhost:54629/
+  ➜  Network: http://172.17.0.2:54629/
   ➜  press h to show help

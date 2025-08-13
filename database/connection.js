@@ -49,8 +49,7 @@ async function initializeDatabase() {
         file_type VARCHAR(100) NOT NULL,
         file_size INTEGER NOT NULL,
         upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        blob_url TEXT,
-        blob_pathname TEXT,
+        file_data BYTEA,
         extracted_text TEXT,
         document_type VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -113,18 +112,18 @@ const db = {
   // Document operations
   async createDocument(documentData) {
     if (!pool) throw new Error('Database not available');
-    const { name, originalFilename, fileType, fileSize, blobUrl, blobPathname, extractedText, documentType } = documentData;
+    const { name, originalFilename, fileType, fileSize, fileData, extractedText, documentType } = documentData;
     const result = await pool.query(
-      `INSERT INTO documents (name, original_filename, file_type, file_size, blob_url, blob_pathname, extracted_text, document_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [name, originalFilename, fileType, fileSize, blobUrl, blobPathname, extractedText, documentType]
+      `INSERT INTO documents (name, original_filename, file_type, file_size, file_data, extracted_text, document_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, original_filename, file_type, file_size, upload_date, extracted_text, document_type, created_at, updated_at`,
+      [name, originalFilename, fileType, fileSize, fileData, extractedText, documentType]
     );
     return result.rows[0];
   },
 
   async getDocuments() {
     if (!pool) throw new Error('Database not available');
-    const result = await pool.query('SELECT * FROM documents ORDER BY upload_date DESC');
+    const result = await pool.query('SELECT id, name, original_filename, file_type, file_size, upload_date, extracted_text, document_type, created_at, updated_at FROM documents ORDER BY upload_date DESC');
     return result.rows;
   },
 
@@ -132,6 +131,12 @@ const db = {
     if (!pool) throw new Error('Database not available');
     const result = await pool.query('SELECT * FROM documents WHERE id = $1', [id]);
     return result.rows[0];
+  },
+
+  async getDocumentData(id) {
+    if (!pool) throw new Error('Database not available');
+    const result = await pool.query('SELECT file_data FROM documents WHERE id = $1', [id]);
+    return result.rows[0]?.file_data;
   },
 
   async deleteDocument(id) {
