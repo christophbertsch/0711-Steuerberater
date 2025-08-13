@@ -98,74 +98,157 @@ async function initApp() {
 let documents = [];
 let documentAnalyses = {};
 
-// Simple and reliable PDF text extraction
+// Extract PDF text using a working approach for serverless
 async function extractPDFTextReliable(buffer, fileName) {
   try {
-    console.log('📄 Using reliable PDF text extraction...');
+    console.log('📄 Starting PDF text extraction...');
     
-    // Method 1: Try pdf-parse with better configuration
+    // Method 1: Try pdf-parse with detailed error handling
     try {
-      const pdfParse = await import('pdf-parse');
-      console.log('📚 pdf-parse imported successfully');
+      console.log('📚 Attempting pdf-parse extraction...');
       
-      const options = {
-        normalizeWhitespace: true,
-        disableCombineTextItems: false,
-        max: 0, // No page limit
-        version: 'v1.10.100' // Use specific version
-      };
+      // Check if pdf-parse can be imported
+      let pdfParse;
+      try {
+        pdfParse = await import('pdf-parse');
+        console.log('✅ pdf-parse imported successfully');
+      } catch (importError) {
+        console.error('❌ pdf-parse import failed:', importError.message);
+        throw new Error('pdf-parse not available');
+      }
       
-      console.log(`🔄 Processing PDF: ${fileName} (${buffer.length} bytes)`);
-      const pdfData = await pdfParse.default(buffer, options);
+      // Try to process the PDF
+      console.log(`🔄 Processing PDF buffer (${buffer.length} bytes)...`);
+      const pdfData = await pdfParse.default(buffer);
       
-      console.log(`📊 PDF processed: ${pdfData.numpages || 0} pages, ${pdfData.text ? pdfData.text.length : 0} characters`);
+      console.log(`📊 pdf-parse result:`, {
+        pages: pdfData.numpages || 0,
+        textLength: pdfData.text ? pdfData.text.length : 0,
+        hasText: !!pdfData.text,
+        info: pdfData.info || {}
+      });
       
       if (pdfData.text && pdfData.text.trim().length > 10) {
-        console.log(`✅ Successfully extracted ${pdfData.text.length} characters`);
+        console.log(`✅ pdf-parse successfully extracted ${pdfData.text.length} characters`);
+        console.log(`📝 First 100 chars: ${pdfData.text.substring(0, 100)}...`);
         return pdfData.text.trim();
       } else {
-        console.log('⚠️ pdf-parse returned minimal text');
+        console.log('⚠️ pdf-parse returned empty or minimal text');
+        console.log('Raw result:', pdfData.text ? `"${pdfData.text}"` : 'null');
       }
       
     } catch (pdfParseError) {
       console.error('❌ pdf-parse failed:', pdfParseError.message);
-      console.error('Full error:', pdfParseError);
+      console.error('Error name:', pdfParseError.name);
+      console.error('Error stack:', pdfParseError.stack);
+      
+      // Check for specific error types
+      if (pdfParseError.message.includes('Cannot read properties')) {
+        console.log('💡 Possible Node.js compatibility issue in serverless environment');
+      } else if (pdfParseError.message.includes('spawn')) {
+        console.log('💡 Possible process spawning issue in serverless environment');
+      } else if (pdfParseError.message.includes('ENOENT')) {
+        console.log('💡 Missing system dependencies in serverless environment');
+      }
     }
     
-    // Method 2: Try basic text extraction from PDF buffer
+    // Method 2: Try direct PDF text extraction using regex patterns
     try {
-      console.log('🔍 Attempting basic text extraction...');
+      console.log('🔍 Attempting direct text extraction...');
       
-      // Convert buffer to string and look for text patterns
-      const bufferString = buffer.toString('binary');
+      const bufferString = buffer.toString('latin1');
       
-      // Simple regex to extract text between PDF text operators
-      const textMatches = bufferString.match(/\(([^)]+)\)/g);
+      // Look for text between BT (Begin Text) and ET (End Text) operators
+      const textBlocks = [];
+      const btPattern = /BT\s+(.*?)\s+ET/gs;
+      let match;
       
-      if (textMatches && textMatches.length > 0) {
-        const extractedText = textMatches
-          .map(match => match.slice(1, -1)) // Remove parentheses
-          .filter(text => text.length > 1 && /[a-zA-Z0-9äöüÄÖÜß]/.test(text)) // Filter meaningful text
+      while ((match = btPattern.exec(bufferString)) !== null) {
+        const textBlock = match[1];
+        
+        // Extract text from Tj and TJ operators
+        const tjMatches = textBlock.match(/\(([^)]*)\)\s*Tj/g);
+        if (tjMatches) {
+          tjMatches.forEach(tjMatch => {
+            const text = tjMatch.match(/\(([^)]*)\)/);
+            if (text && text[1]) {
+              textBlocks.push(text[1]);
+            }
+          });
+        }
+        
+        // Also try parentheses-enclosed text
+        const parenMatches = textBlock.match(/\(([^)]+)\)/g);
+        if (parenMatches) {
+          parenMatches.forEach(parenMatch => {
+            const text = parenMatch.slice(1, -1);
+            if (text.length > 1 && /[a-zA-Z0-9äöüÄÖÜß]/.test(text)) {
+              textBlocks.push(text);
+            }
+          });
+        }
+      }
+      
+      if (textBlocks.length > 0) {
+        const extractedText = textBlocks
+          .filter(text => text.length > 1)
           .join(' ')
           .replace(/\s+/g, ' ')
           .trim();
         
         if (extractedText.length > 10) {
-          console.log(`✅ Basic extraction found ${extractedText.length} characters`);
+          console.log(`✅ Direct extraction found ${extractedText.length} characters`);
           return extractedText;
         }
       }
       
-      console.log('⚠️ Basic extraction found no meaningful text');
+      console.log('⚠️ Direct extraction found no meaningful text');
       
-    } catch (basicError) {
-      console.error('❌ Basic extraction failed:', basicError.message);
+    } catch (directError) {
+      console.error('❌ Direct extraction failed:', directError.message);
     }
     
+    // Method 3: Simple fallback - look for any readable text in the PDF
+    try {
+      console.log('🔍 Attempting simple text search...');
+      
+      const bufferString = buffer.toString('latin1');
+      
+      // Find all text in parentheses (common PDF text format)
+      const allMatches = bufferString.match(/\(([^)]{2,})\)/g);
+      
+      if (allMatches && allMatches.length > 0) {
+        const extractedText = allMatches
+          .map(match => match.slice(1, -1))
+          .filter(text => {
+            // Filter for meaningful text (contains letters/numbers, not just symbols)
+            return text.length > 1 && 
+                   /[a-zA-Z0-9äöüÄÖÜß]/.test(text) && 
+                   !text.includes('endstream') && 
+                   !text.includes('xref') &&
+                   !text.includes('trailer');
+          })
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (extractedText.length > 10) {
+          console.log(`✅ Simple search found ${extractedText.length} characters`);
+          return extractedText;
+        }
+      }
+      
+      console.log('⚠️ Simple search found no meaningful text');
+      
+    } catch (simpleError) {
+      console.error('❌ Simple search failed:', simpleError.message);
+    }
+    
+    console.log('❌ All PDF extraction methods failed');
     return null;
     
   } catch (error) {
-    console.error('❌ All PDF extraction methods failed:', error.message);
+    console.error('❌ PDF extraction error:', error.message);
     throw error;
   }
 }
