@@ -35,7 +35,7 @@ class DocumentProcessor {
           confidence: this.calculateExtractionConfidence(uploadedDoc.extractedText || clientExtractedText)
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error processing document:', error);
       throw new Error(`Failed to process document: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -154,7 +154,7 @@ class DocumentProcessor {
         throw new Error('Failed to get processing status');
       }
       return response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'failed',
         progress: 0,
