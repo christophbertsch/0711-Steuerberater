@@ -217,23 +217,23 @@ async function generateExpertOpinion(documentType, extractedContent, filename) {
     5. Empfehlungen für den Steuerpflichtigen
     6. Warnungen oder wichtige Hinweise
     
-    Antworten Sie NUR mit gültigem JSON in dieser Struktur:
+    Antworten Sie NUR mit gültigem JSON in dieser Struktur (alle Texte auf Deutsch):
     {
-      "summary": "Brief summary of the document",
-      "taxRelevance": "high|medium|low|none",
-      "taxImplications": ["implication1", "implication2"],
-      "legalConsiderations": ["consideration1", "consideration2"],
+      "summary": "Kurze Zusammenfassung des Dokuments auf Deutsch",
+      "taxRelevance": "high|medium|low|unknown",
+      "taxImplications": ["Steuerliche Auswirkung 1", "Steuerliche Auswirkung 2"],
+      "legalConsiderations": ["Rechtliche Überlegung 1", "Rechtliche Überlegung 2"],
       "potentialDeductions": [
         {
-          "category": "category name",
-          "amount": 0,
-          "description": "description",
+          "category": "Kategoriename",
+          "amount": null,
+          "description": "Beschreibung auf Deutsch",
           "confidence": 0.8,
-          "requirements": ["requirement1", "requirement2"]
+          "requirements": ["Voraussetzung 1", "Voraussetzung 2"]
         }
       ],
-      "recommendations": ["recommendation1", "recommendation2"],
-      "warnings": ["warning1", "warning2"],
+      "recommendations": ["Empfehlung 1", "Empfehlung 2"],
+      "warnings": ["Warnung 1", "Warnung 2"],
       "confidence": 0.85
     }
     `;
@@ -242,7 +242,7 @@ async function generateExpertOpinion(documentType, extractedContent, filename) {
       model: "gpt-4",
       messages: [{ 
         role: "system", 
-        content: "You are a German tax expert. Always respond with valid JSON only, no additional text."
+        content: "Sie sind ein deutscher Steuerexperte. Antworten Sie IMMER auf Deutsch und NUR mit gültigem JSON, ohne zusätzlichen Text. Alle Texte in der JSON-Antwort müssen auf Deutsch sein."
       }, { 
         role: "user", 
         content: prompt 
@@ -263,13 +263,13 @@ async function generateExpertOpinion(documentType, extractedContent, filename) {
   } catch (error) {
     console.error('Error generating expert opinion:', error);
     return {
-      summary: "Unable to analyze document at this time",
-      taxRelevance: "low",
-      taxImplications: [],
-      legalConsiderations: [],
+      summary: "Dokumentanalyse derzeit nicht möglich. Bitte versuchen Sie es später erneut.",
+      taxRelevance: "unknown",
+      taxImplications: ["Analyse fehlgeschlagen - manuelle Prüfung erforderlich"],
+      legalConsiderations: ["Dokument sollte von einem Steuerberater geprüft werden"],
       potentialDeductions: [],
-      recommendations: [],
-      warnings: ["Analysis failed - please review manually"],
+      recommendations: ["Bitte wenden Sie sich an einen Steuerberater für eine detaillierte Analyse"],
+      warnings: ["Automatische Analyse fehlgeschlagen - manuelle Prüfung empfohlen"],
       confidence: 0.0
     };
   }
