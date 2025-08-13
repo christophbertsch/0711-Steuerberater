@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { put, del, list } from '@vercel/blob';
+import { db, initializeDatabase } from '../database/connection.js';
 // pdf-parse will be imported dynamically
 
 // Load environment variables
@@ -64,7 +65,17 @@ const upload = multer({
   }
 });
 
-// In-memory storage for documents (in production, use a database)
+// Initialize database on startup
+async function initApp() {
+  try {
+    await initializeDatabase();
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+  }
+}
+
+// Legacy in-memory storage (kept for fallback)
 let documents = [];
 let documentAnalyses = {};
 
@@ -471,23 +482,37 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       // Don't fail the upload if text extraction fails
     }
 
-    const document = {
-      id: Date.now().toString(),
+    // Save to database
+    console.log('Saving document to database');
+    const document = await db.createDocument({
       name: req.file.originalname,
-      type: req.file.mimetype,
-      size: req.file.size,
-      uploadDate: new Date(),
+      originalFilename: req.file.originalname,
+      fileType: req.file.mimetype,
+      fileSize: req.file.size,
       blobUrl: blob.url,
       blobPathname: blob.pathname,
-      textBlobUrl: textBlob ? textBlob.url : null,
-      extractedText: extractedText.substring(0, 1000) // Store first 1000 chars in memory for quick access
-    };
+      extractedText: extractedText,
+      documentType: null // Will be determined during analysis
+    });
 
-    console.log('Document created, adding to array');
-    documents.push(document);
+    console.log('Document saved to database with ID:', document.id);
+    
+    // Also add to legacy in-memory storage for compatibility
+    const legacyDocument = {
+      id: document.id.toString(),
+      name: document.name,
+      type: document.file_type,
+      size: document.file_size,
+      uploadDate: document.upload_date,
+      blobUrl: document.blob_url,
+      blobPathname: document.blob_pathname,
+      textBlobUrl: textBlob ? textBlob.url : null,
+      extractedText: document.extracted_text ? document.extracted_text.substring(0, 1000) : ''
+    };
+    documents.push(legacyDocument);
     
     console.log('Sending response');
-    res.json(document);
+    res.json(legacyDocument);
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed: ' + error.message });
@@ -497,6 +522,28 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
 // Get all documents
 app.get('/api/documents', async (req, res) => {
   try {
+    // Try to get documents from database first
+    try {
+      const dbDocuments = await db.getDocuments();
+      
+      // Convert to legacy format for compatibility
+      const legacyDocuments = dbDocuments.map(doc => ({
+        id: doc.id.toString(),
+        name: doc.name,
+        type: doc.file_type,
+        size: doc.file_size,
+        uploadDate: doc.upload_date,
+        blobUrl: doc.blob_url,
+        blobPathname: doc.blob_pathname,
+        extractedText: doc.extracted_text ? doc.extracted_text.substring(0, 1000) : ''
+      }));
+      
+      return res.json(legacyDocuments);
+    } catch (dbError) {
+      console.error('Database error, falling back to blob storage:', dbError);
+    }
+
+    // Fallback to blob storage if database fails
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       // Return in-memory documents when blob storage not configured
       return res.json(documents);
@@ -525,7 +572,7 @@ app.get('/api/documents', async (req, res) => {
     res.json(blobDocuments);
   } catch (error) {
     console.error('Error fetching documents:', error);
-    // Fallback to in-memory documents on error
+    // Final fallback to in-memory documents on error
     res.json(documents);
   }
 });
@@ -569,9 +616,29 @@ app.post('/api/ai/analyze', async (req, res) => {
   try {
     const { documentId } = req.body;
     
-    // Get documents from blob storage
+    // Get document from database first
     let document = null;
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const dbDocument = await db.getDocumentById(parseInt(documentId));
+      if (dbDocument) {
+        document = {
+          id: dbDocument.id.toString(),
+          name: dbDocument.name,
+          type: dbDocument.file_type,
+          size: dbDocument.file_size,
+          uploadDate: dbDocument.upload_date,
+          blobUrl: dbDocument.blob_url,
+          blobPathname: dbDocument.blob_pathname,
+          extractedText: dbDocument.extracted_text
+        };
+        console.log(`Found document in database: ${document.name}`);
+      }
+    } catch (dbError) {
+      console.error('Database error, falling back to blob storage:', dbError);
+    }
+
+    // Fallback to blob storage if database fails
+    if (!document && process.env.BLOB_READ_WRITE_TOKEN) {
       try {
         const { blobs } = await list();
         const blobDocuments = blobs.map((blob, index) => {
@@ -595,7 +662,7 @@ app.post('/api/ai/analyze', async (req, res) => {
       }
     }
     
-    // Fallback to in-memory documents
+    // Final fallback to in-memory documents
     if (!document) {
       document = documents.find(doc => doc.id === documentId);
     }
@@ -604,7 +671,26 @@ app.post('/api/ai/analyze', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Check if already analyzed
+    // Check if already analyzed in database
+    try {
+      const existingAnalysis = await db.getAnalysisByDocumentId(parseInt(documentId));
+      if (existingAnalysis) {
+        console.log(`Found existing analysis in database for document ${documentId}`);
+        const analysis = {
+          documentType: existingAnalysis.document_type,
+          taxRelevance: existingAnalysis.tax_relevance,
+          extractedData: existingAnalysis.extracted_data,
+          expertOpinion: existingAnalysis.expert_opinion,
+          suggestedActions: existingAnalysis.suggested_actions,
+          confidence: existingAnalysis.confidence
+        };
+        return res.json(analysis);
+      }
+    } catch (dbError) {
+      console.error('Database error checking existing analysis:', dbError);
+    }
+
+    // Fallback: Check if already analyzed in memory
     if (documentAnalyses[documentId]) {
       return res.json(documentAnalyses[documentId]);
     }
@@ -647,6 +733,23 @@ app.post('/api/ai/analyze', async (req, res) => {
       confidence: expertOpinion.confidence
     };
 
+    // Save analysis to database
+    try {
+      await db.createAnalysis({
+        documentId: parseInt(documentId),
+        documentType,
+        taxRelevance: expertOpinion.taxRelevance,
+        confidence: expertOpinion.confidence,
+        expertOpinion,
+        extractedData: { content: content.substring(0, 500) },
+        suggestedActions: expertOpinion.recommendations
+      });
+      console.log(`Analysis saved to database for document ${documentId}`);
+    } catch (dbError) {
+      console.error('Failed to save analysis to database:', dbError);
+    }
+
+    // Also save to memory for backward compatibility
     documentAnalyses[documentId] = analysis;
     res.json(analysis);
   } catch (error) {
@@ -1208,6 +1311,9 @@ app.use((error, req, res, next) => {
   console.error('Server error:', error);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+// Initialize database
+initApp();
 
 // Start server locally, export for Vercel
 if (!process.env.VERCEL) {
