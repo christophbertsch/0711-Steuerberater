@@ -1,0 +1,7 @@
+# Force deployment trigger
+# This file is used to trigger a new Vercel deployment
+# Timestamp: 2025-08-13 08:20:00 UTC
+
+DEPLOYMENT_TRIGGER=true
+INTEGRATION_VERSION=1.0.0
+BLOB_STORAGE_ENABLED=true
