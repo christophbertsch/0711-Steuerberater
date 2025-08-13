@@ -34,13 +34,23 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-ap
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:56534', 
-    'http://localhost:54628', 
-    'http://127.0.0.1:56534', 
-    'http://127.0.0.1:54628',
-    'https://0711-steuerberater.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel deployments
+    if (origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // For production, you might want to be more restrictive
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

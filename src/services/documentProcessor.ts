@@ -37,7 +37,7 @@ class DocumentProcessor {
       };
     } catch (error) {
       console.error('Error processing document:', error);
-      throw new Error(`Failed to process document: ${error.message}`);
+      throw new Error(`Failed to process document: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -158,7 +158,7 @@ class DocumentProcessor {
       return {
         status: 'failed',
         progress: 0,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
