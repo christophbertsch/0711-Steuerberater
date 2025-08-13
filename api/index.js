@@ -482,33 +482,50 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       // Don't fail the upload if text extraction fails
     }
 
-    // Save to database
-    console.log('Saving document to database');
-    const document = await db.createDocument({
-      name: req.file.originalname,
-      originalFilename: req.file.originalname,
-      fileType: req.file.mimetype,
-      fileSize: req.file.size,
-      blobUrl: blob.url,
-      blobPathname: blob.pathname,
-      extractedText: extractedText,
-      documentType: null // Will be determined during analysis
-    });
-
-    console.log('Document saved to database with ID:', document.id);
+    // Try to save to database, but don't fail if database is not available
+    let document = null;
+    try {
+      console.log('Attempting to save document to database');
+      document = await db.createDocument({
+        name: req.file.originalname,
+        originalFilename: req.file.originalname,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size,
+        blobUrl: blob.url,
+        blobPathname: blob.pathname,
+        extractedText: extractedText,
+        documentType: null // Will be determined during analysis
+      });
+      console.log('Document saved to database with ID:', document.id);
+    } catch (dbError) {
+      console.error('Failed to save to database, using fallback:', dbError);
+      // Create a fallback document object
+      document = {
+        id: Date.now(),
+        name: req.file.originalname,
+        file_type: req.file.mimetype,
+        file_size: req.file.size,
+        upload_date: new Date(),
+        blob_url: blob.url,
+        blob_pathname: blob.pathname,
+        extracted_text: extractedText
+      };
+    }
     
-    // Also add to legacy in-memory storage for compatibility
+    // Create legacy document format for response
     const legacyDocument = {
       id: document.id.toString(),
-      name: document.name,
-      type: document.file_type,
-      size: document.file_size,
-      uploadDate: document.upload_date,
-      blobUrl: document.blob_url,
-      blobPathname: document.blob_pathname,
+      name: document.name || req.file.originalname,
+      type: document.file_type || req.file.mimetype,
+      size: document.file_size || req.file.size,
+      uploadDate: document.upload_date || new Date(),
+      blobUrl: document.blob_url || blob.url,
+      blobPathname: document.blob_pathname || blob.pathname,
       textBlobUrl: textBlob ? textBlob.url : null,
-      extractedText: document.extracted_text ? document.extracted_text.substring(0, 1000) : ''
+      extractedText: document.extracted_text ? document.extracted_text.substring(0, 1000) : extractedText.substring(0, 1000)
     };
+    
+    // Add to in-memory storage for compatibility
     documents.push(legacyDocument);
     
     console.log('Sending response');
