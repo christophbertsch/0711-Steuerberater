@@ -107,63 +107,56 @@ async function extractTextFromBuffer(buffer, mimeType, fileName) {
       console.log(`Processing PDF buffer: ${fileName} (${buffer.length} bytes)`);
       
       try {
-        // Try pdf-parse first (more reliable for text-based PDFs)
-        console.log('Attempting pdf-parse import...');
-        const pdfParse = await import('pdf-parse');
-        console.log('pdf-parse imported successfully, processing buffer...');
+        // Use pgpdf-http service for reliable PDF text extraction
+        console.log('Using pgpdf-http service for PDF text extraction...');
         
-        const pdfData = await pdfParse.default(buffer);
-        console.log(`pdf-parse result: ${pdfData.text ? pdfData.text.length : 0} characters, ${pdfData.numpages || 0} pages`);
+        const formData = new FormData();
+        const blob = new Blob([buffer], { type: 'application/pdf' });
+        formData.append('file', blob, fileName);
         
-        if (pdfData.text && pdfData.text.trim().length > 10) { // Lowered threshold from 50 to 10
-          console.log(`Successfully extracted ${pdfData.text.length} characters using pdf-parse`);
-          return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfData.text.trim()}`;
+        const response = await fetch('https://tselai.com/pgpdf-http/pdf', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'text/plain'
+          }
+        });
+        
+        if (response.ok) {
+          const extractedText = await response.text();
+          console.log(`pgpdf-http extracted ${extractedText.length} characters`);
+          
+          if (extractedText && extractedText.trim().length > 10) {
+            console.log(`Successfully extracted ${extractedText.length} characters using pgpdf-http`);
+            return `PDF Document: ${fileName}\n\nExtracted Content:\n${extractedText.trim()}`;
+          } else {
+            console.log('pgpdf-http extracted minimal text, trying local fallback');
+          }
         } else {
-          console.log(`pdf-parse extracted minimal text (${pdfData.text ? pdfData.text.length : 0} chars), trying pdfjs-dist`);
+          console.log(`pgpdf-http service returned ${response.status}: ${response.statusText}`);
+        }
+        
+      } catch (pgpdfError) {
+        console.error('pgpdf-http service failed:', pgpdfError);
+        console.log('pgpdf-http failed, trying local PDF processing');
+      }
+      
+      // Fallback to local PDF processing if pgpdf-http fails
+      try {
+        console.log('Attempting local pdf-parse as fallback...');
+        const pdfParse = await import('pdf-parse');
+        const pdfData = await pdfParse.default(buffer);
+        
+        if (pdfData.text && pdfData.text.trim().length > 10) {
+          console.log(`Successfully extracted ${pdfData.text.length} characters using pdf-parse fallback`);
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfData.text.trim()}`;
         }
       } catch (pdfParseError) {
-        console.error('pdf-parse failed with error:', pdfParseError);
-        console.log('pdf-parse failed, trying pdfjs-dist:', pdfParseError.message);
+        console.log('Local pdf-parse fallback also failed:', pdfParseError.message);
       }
       
-      try {
-        // Fallback to pdfjs-dist
-        console.log('Attempting pdfjs-dist import...');
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
-        console.log('pdfjs-dist imported successfully, loading PDF...');
-        
-        // Load PDF document
-        const loadingTask = pdfjsLib.getDocument({ data: buffer });
-        const pdf = await loadingTask.promise;
-        console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
-        
-        let fullText = '';
-        
-        // Extract text from all pages
-        for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 10); pageNum++) { // Limit to 10 pages for performance
-          console.log(`Processing page ${pageNum}...`);
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(' ');
-          console.log(`Page ${pageNum} extracted ${pageText.length} characters`);
-          fullText += `\n--- Page ${pageNum} ---\n${pageText}\n`;
-        }
-        
-        console.log(`Total extracted text length: ${fullText.trim().length}`);
-        
-        if (fullText.trim().length > 10) { // Lowered threshold from 50 to 10
-          console.log(`Successfully extracted ${fullText.length} characters using pdfjs-dist`);
-          return `PDF Document: ${fileName}\n\nExtracted Content:${fullText.trim()}`;
-        } else {
-          console.log(`pdfjs-dist extracted minimal text (${fullText.trim().length} chars), using intelligent metadata analysis`);
-        }
-        
-      } catch (pdfjsError) {
-        console.error('pdfjs-dist failed with error:', pdfjsError);
-        console.log('pdfjs-dist failed, using intelligent metadata analysis:', pdfjsError.message);
-      }
-      
-      // Fallback to intelligent metadata analysis
+      // Final fallback to intelligent metadata analysis
+      console.log('All PDF extraction methods failed, using intelligent metadata analysis');
       return await getIntelligentMetadataAnalysis(fileName, buffer.length);
       
     } else if (mimeType.startsWith('image/')) {
