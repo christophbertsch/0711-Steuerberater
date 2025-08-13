@@ -383,6 +383,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 
 // Analyze document
 app.post('/api/ai/analyze', async (req, res) => {
+  console.log('AI analyze endpoint called with:', req.body);
   try {
     const { documentId } = req.body;
     const document = documents.find(doc => doc.id === documentId);
@@ -978,10 +979,12 @@ app.use((error, req, res, next) => {
 
 // Start server locally, export for Vercel
 if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 56534;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Tax & Law AI Expert server running on http://localhost:${PORT}`);
     console.log('Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables');
   });
 }
 
+// Export for Vercel
 export default app;
