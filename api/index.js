@@ -438,20 +438,24 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
 
     // Extract text content immediately during upload
     let extractedText = '';
+    let textBlob = null;
+    
     try {
       extractedText = await extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname);
       console.log(`Successfully extracted ${extractedText.length} characters from ${req.file.originalname}`);
+      
+      // Store extracted text as a separate blob for persistence
+      const textFileName = `documents/${uniqueSuffix}-${req.file.originalname}.txt`;
+      textBlob = await put(textFileName, extractedText, {
+        access: 'public',
+        contentType: 'text/plain',
+      });
+      
     } catch (extractError) {
       console.error('Text extraction failed during upload:', extractError);
       extractedText = `Text extraction failed for ${req.file.originalname}. Manual review required.`;
+      // Don't fail the upload if text extraction fails
     }
-
-    // Store extracted text as a separate blob for persistence
-    const textFileName = `documents/${uniqueSuffix}-${req.file.originalname}.txt`;
-    const textBlob = await put(textFileName, extractedText, {
-      access: 'public',
-      contentType: 'text/plain',
-    });
 
     const document = {
       id: Date.now().toString(),
@@ -461,7 +465,7 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       uploadDate: new Date(),
       blobUrl: blob.url,
       blobPathname: blob.pathname,
-      textBlobUrl: textBlob.url,
+      textBlobUrl: textBlob ? textBlob.url : null,
       extractedText: extractedText.substring(0, 1000) // Store first 1000 chars in memory for quick access
     };
 
