@@ -417,7 +417,37 @@ app.post('/api/ai/analyze', async (req, res) => {
   console.log('AI analyze endpoint called with:', req.body);
   try {
     const { documentId } = req.body;
-    const document = documents.find(doc => doc.id === documentId);
+    
+    // Get documents from blob storage
+    let document = null;
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const { blobs } = await list();
+        const blobDocuments = blobs.map((blob, index) => {
+          const filename = blob.pathname.split('/').pop() || 'unknown.pdf';
+          const cleanName = filename.replace(/^\d+-\d+-/, '');
+          
+          return {
+            id: (index + 1).toString(),
+            name: cleanName,
+            type: 'application/pdf',
+            size: blob.size,
+            uploadDate: blob.uploadedAt,
+            blobUrl: blob.url,
+            blobPathname: blob.pathname
+          };
+        });
+        
+        document = blobDocuments.find(doc => doc.id === documentId);
+      } catch (error) {
+        console.error('Error fetching from blob storage:', error);
+      }
+    }
+    
+    // Fallback to in-memory documents
+    if (!document) {
+      document = documents.find(doc => doc.id === documentId);
+    }
     
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
