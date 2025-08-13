@@ -968,10 +968,7 @@ function calculateGermanTaxRate(income) {
   return 0.45;
 }
 
-// Serve React app for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+// Don't serve static files in serverless function - handled by Vercel routing
 
 // Error handling middleware
 app.use((error, req, res, next) => {
