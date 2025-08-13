@@ -25,17 +25,25 @@ class AIService {
       // Return mock analysis
       return {
         documentId: document.id,
-        summary: `Mock-Analyse für ${document.name}: Dieses Dokument wurde erfolgreich hochgeladen, aber die KI-Analyse ist derzeit nicht verfügbar. In einer vollständigen Implementierung würde hier eine detaillierte steuerliche und rechtliche Bewertung des Dokuments erscheinen.`,
-        taxImplications: [
-          'Steuerliche Relevanz erkannt',
-          'Weitere Analyse erforderlich bei verfügbarer Backend-Verbindung'
-        ],
-        legalAdvice: [
-          'Rechtliche Prüfung empfohlen',
-          'Vollständige Analyse bei verfügbarer API-Verbindung'
-        ],
-        confidence: 0.85,
-        analyzedAt: new Date()
+        documentType: 'other' as const,
+        taxRelevance: 'medium' as const,
+        extractedData: { content: `Mock data for ${document.name}` },
+        expertOpinion: {
+          summary: `Mock-Analyse für ${document.name}: Dieses Dokument wurde erfolgreich hochgeladen, aber die KI-Analyse ist derzeit nicht verfügbar. In einer vollständigen Implementierung würde hier eine detaillierte steuerliche und rechtliche Bewertung des Dokuments erscheinen.`,
+          taxImplications: [
+            'Steuerliche Relevanz erkannt',
+            'Weitere Analyse erforderlich bei verfügbarer Backend-Verbindung'
+          ],
+          legalConsiderations: [
+            'Rechtliche Prüfung empfohlen',
+            'Vollständige Analyse bei verfügbarer API-Verbindung'
+          ],
+          recommendations: ['Backend-Verbindung herstellen für vollständige Analyse'],
+          potentialDeductions: [],
+          warnings: ['Mock-Daten - keine echte Analyse verfügbar']
+        },
+        suggestedActions: ['Backend-Verbindung herstellen'],
+        confidence: 0.85
       };
     }
   }

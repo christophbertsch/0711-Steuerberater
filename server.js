@@ -6,21 +6,31 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 56534;
+const PORT = process.env.PORT || 56534;
 
-// Initialize OpenAI (you'll need to set your API key)
+// Initialize OpenAI with environment variable
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'your-openai-api-key-here'
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:56534', 'http://localhost:54628', 'http://127.0.0.1:56534', 'http://127.0.0.1:54628'],
+  origin: [
+    'http://localhost:56534', 
+    'http://localhost:54628', 
+    'http://127.0.0.1:56534', 
+    'http://127.0.0.1:54628',
+    'https://0711-steuerberater.vercel.app'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -29,7 +39,7 @@ app.use(express.json());
 app.use(express.static('dist'));
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -71,9 +81,10 @@ let documentAnalyses = {};
 async function extractTextFromFile(filePath, mimeType) {
   try {
     if (mimeType === 'application/pdf') {
-      // For PDF files, you would use a library like pdf-parse
-      // For now, return a placeholder
-      return 'PDF content extraction would be implemented here';
+      // For demonstration, use file name and size as content
+      const stats = fs.statSync(filePath);
+      const fileName = path.basename(filePath);
+      return `PDF Document: ${fileName}, Size: ${stats.size} bytes. This appears to be a tax-related document based on the filename.`;
     } else if (mimeType.startsWith('image/')) {
       // For images, you would use OCR like Tesseract
       return 'OCR text extraction would be implemented here';
@@ -126,24 +137,46 @@ async function classifyDocument(content, filename) {
 }
 
 // Helper function to generate expert opinion using AI
-async function generateExpertOpinion(documentType, content, filename) {
+async function generateExpertOpinion(documentType, extractedContent, filename) {
   try {
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openai-api-key-here') {
+      console.log('OpenAI API key not configured, returning mock analysis');
+      return {
+        summary: `Mock-Analyse für ${filename}: OpenAI API-Schlüssel nicht konfiguriert. Bitte setzen Sie OPENAI_API_KEY in der .env Datei für echte KI-Analyse.`,
+        taxRelevance: "medium",
+        taxImplications: ["Mock: Steuerliche Relevanz erkannt", "Konfigurieren Sie OpenAI API für echte Analyse"],
+        legalConsiderations: ["Mock: Rechtliche Prüfung empfohlen", "Echte Analyse erfordert OpenAI API-Schlüssel"],
+        potentialDeductions: [
+          {
+            category: "Demo-Abzug",
+            amount: 100,
+            description: "Beispiel-Abzug (Mock-Daten)",
+            confidence: 0.5,
+            requirements: ["OpenAI API-Schlüssel konfigurieren"]
+          }
+        ],
+        recommendations: ["OpenAI API-Schlüssel in .env Datei setzen für echte KI-Analyse"],
+        warnings: ["Dies sind Mock-Daten - konfigurieren Sie OpenAI API für echte Analyse"],
+        confidence: 0.5
+      };
+    }
     const prompt = `
-    As a German tax and legal expert, analyze this document and provide a comprehensive expert opinion.
+    Analysieren Sie dieses deutsche Steuerdokument als Experte und geben Sie eine umfassende Bewertung ab.
     
-    Document Type: ${documentType}
-    Filename: ${filename}
-    Content: ${content.substring(0, 2000)}...
+    Dokumenttyp: ${documentType}
+    Dateiname: ${filename}
+    Inhalt: ${extractedContent}
     
-    Please provide:
-    1. A summary of the document
-    2. Tax implications and relevance (high/medium/low/none)
-    3. Legal considerations
-    4. Potential tax deductions with amounts if identifiable
-    5. Recommendations for the taxpayer
-    6. Any warnings or important notes
+    Bitte analysieren Sie:
+    1. Eine Zusammenfassung des Dokuments
+    2. Steuerliche Relevanz (high/medium/low/none)
+    3. Rechtliche Überlegungen für deutsche Steuern
+    4. Potenzielle Steuerabzüge mit Beträgen falls erkennbar
+    5. Empfehlungen für den Steuerpflichtigen
+    6. Warnungen oder wichtige Hinweise
     
-    Format your response as JSON with the following structure:
+    Antworten Sie NUR mit gültigem JSON in dieser Struktur:
     {
       "summary": "Brief summary of the document",
       "taxRelevance": "high|medium|low|none",
@@ -166,12 +199,26 @@ async function generateExpertOpinion(documentType, content, filename) {
 
     const response = await openai.chat.completions.create({
       model: "gpt-4",
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ 
+        role: "system", 
+        content: "You are a German tax expert. Always respond with valid JSON only, no additional text."
+      }, { 
+        role: "user", 
+        content: prompt 
+      }],
       max_tokens: 1500,
       temperature: 0.3
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    const content = response.choices[0].message.content.trim();
+    
+    // Try to extract JSON if response contains other text
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    return JSON.parse(content);
   } catch (error) {
     console.error('Error generating expert opinion:', error);
     return {
@@ -829,7 +876,12 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Tax & Law AI Expert server running on http://localhost:${PORT}`);
-  console.log('Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables');
-});
+// Start server locally, export for Vercel
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Tax & Law AI Expert server running on http://localhost:${PORT}`);
+    console.log('Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables');
+  });
+}
+
+export default app;

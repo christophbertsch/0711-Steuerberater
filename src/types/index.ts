@@ -4,11 +4,13 @@ export interface Document {
   type: string;
   size: number;
   uploadDate: Date;
+  filePath?: string;
   content?: string;
   analysis?: DocumentAnalysis;
 }
 
 export interface DocumentAnalysis {
+  documentId?: string;
   documentType: 'tax_form' | 'receipt' | 'invoice' | 'donation' | 'salary' | 'other';
   taxRelevance: 'high' | 'medium' | 'low' | 'none';
   extractedData: Record<string, any>;

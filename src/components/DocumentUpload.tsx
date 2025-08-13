@@ -136,7 +136,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ documents, onDocumentUp
                   <div>
                     <h4 className="font-medium text-gray-900">{doc.name}</h4>
                     <p className="text-sm text-gray-500">
-                      {formatFileSize(doc.size)} • Hochgeladen am {doc.uploadDate.toLocaleDateString()}
+                      {formatFileSize(doc.size)} • Hochgeladen am {new Date(doc.uploadDate).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
