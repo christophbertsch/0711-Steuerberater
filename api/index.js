@@ -114,6 +114,10 @@ let documentAnalyses = {};
 // Generate embeddings for text using OpenAI
 async function generateEmbedding(text) {
   try {
+    if (!openai) {
+      throw new Error('OpenAI client not initialized - API key not configured');
+    }
+    
     const response = await openai.embeddings.create({
       model: "text-embedding-ada-002",
       input: text,
@@ -324,9 +328,10 @@ async function extractPDFTextReliable(buffer, fileName) {
         if (response.ok) {
           const result = await response.json();
           
-          if (result.success && result.extracted_text && result.extracted_text.trim().length > 10) {
-            console.log(`✅ External service extracted ${result.text_length} characters`);
-            return result.extracted_text.trim();
+          if (result.success && result.text && result.text.trim().length > 10) {
+            console.log(`✅ External service extracted ${result.text_length} characters from ${result.pages} pages`);
+            console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
+            return result.text.trim();
           }
         }
         
