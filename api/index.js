@@ -19,13 +19,17 @@ const app = express();
 
 // Initialize OpenAI with environment variable (optional for blob storage functionality)
 let openai = null;
+console.log('Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY);
+console.log('Environment check - OPENAI_API_KEY length:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
+console.log('Environment check - OPENAI_API_KEY starts with sk-:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.startsWith('sk-') : false);
+
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-api-key-here') {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
-  console.log('OpenAI API initialized');
+  console.log('✅ OpenAI API initialized successfully');
 } else {
-  console.log('OpenAI API key not configured - AI analysis will use mock responses');
+  console.log('❌ OpenAI API key not configured - AI analysis will use mock responses');
 }
 
 // Middleware
