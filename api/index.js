@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { put, del, list } from '@vercel/blob';
+import pdf from 'pdf-parse';
 
 // Load environment variables
 dotenv.config();
@@ -71,8 +72,19 @@ let documentAnalyses = {};
 async function extractTextFromFile(blobUrl, mimeType, fileName, fileSize) {
   try {
     if (mimeType === 'application/pdf') {
-      // For demonstration, use file name and size as content
-      return `PDF Document: ${fileName}, Size: ${fileSize} bytes. This appears to be a tax-related document based on the filename.`;
+      // Extract actual PDF content
+      console.log(`Extracting PDF content from: ${fileName}`);
+      const response = await fetch(blobUrl);
+      const buffer = await response.arrayBuffer();
+      const data = await pdf(Buffer.from(buffer));
+      
+      if (data.text && data.text.trim()) {
+        console.log(`Successfully extracted ${data.text.length} characters from PDF`);
+        return data.text;
+      } else {
+        console.log('PDF appears to be empty or image-based');
+        return `PDF Document: ${fileName}, Size: ${fileSize} bytes. This document appears to be image-based or empty. Manual review may be required.`;
+      }
     } else if (mimeType.startsWith('image/')) {
       // For images, you would use OCR like Tesseract
       return 'OCR text extraction would be implemented here';
