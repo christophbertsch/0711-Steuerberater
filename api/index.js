@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { QdrantClient } from '@qdrant/js-client-rest';
 // Removed Vercel Blob dependency - using database storage instead
 // Import database with fallback
 let db = null;
@@ -77,6 +78,19 @@ const upload = multer({
   }
 });
 
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Initialize Qdrant client
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL || 'http://34.40.104.64:6333',
+  apiKey: process.env.QDRANT_API_KEY, // Optional if no auth
+});
+
+const QDRANT_COLLECTION = 'steuerberater';
+
 // Initialize database on startup
 async function initApp() {
   try {
@@ -98,150 +112,272 @@ async function initApp() {
 let documents = [];
 let documentAnalyses = {};
 
-// Extract PDF text using a working approach for serverless
+// Generate embeddings for text using OpenAI
+async function generateEmbedding(text) {
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-ada-002",
+      input: text,
+    });
+    return response.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    throw error;
+  }
+}
+
+// Store document in Qdrant with embeddings
+async function storeDocumentInQdrant(documentId, text, metadata) {
+  try {
+    console.log(`📊 Storing document ${documentId} in Qdrant...`);
+    
+    // Generate embedding for the text
+    const embedding = await generateEmbedding(text);
+    
+    // Store in Qdrant
+    await qdrant.upsert(QDRANT_COLLECTION, {
+      wait: true,
+      points: [
+        {
+          id: documentId,
+          vector: embedding,
+          payload: {
+            text: text,
+            filename: metadata.filename,
+            type: metadata.type,
+            size: metadata.size,
+            uploadDate: metadata.uploadDate,
+            documentType: metadata.documentType || 'unknown',
+            language: metadata.language || 'de',
+            ...metadata
+          }
+        }
+      ]
+    });
+    
+    console.log(`✅ Document ${documentId} stored in Qdrant successfully`);
+    return true;
+    
+  } catch (error) {
+    console.error(`❌ Error storing document ${documentId} in Qdrant:`, error);
+    throw error;
+  }
+}
+
+// Search documents in Qdrant using semantic similarity
+async function searchDocumentsInQdrant(query, limit = 5) {
+  try {
+    console.log(`🔍 Searching Qdrant for: "${query}"`);
+    
+    // Generate embedding for the query
+    const queryEmbedding = await generateEmbedding(query);
+    
+    // Search in Qdrant
+    const searchResult = await qdrant.search(QDRANT_COLLECTION, {
+      vector: queryEmbedding,
+      limit: limit,
+      with_payload: true,
+      with_vector: false
+    });
+    
+    console.log(`📊 Found ${searchResult.length} similar documents`);
+    
+    return searchResult.map(result => ({
+      id: result.id,
+      score: result.score,
+      ...result.payload
+    }));
+    
+  } catch (error) {
+    console.error('❌ Error searching Qdrant:', error);
+    throw error;
+  }
+}
+
+// Detect document type based on filename and content
+function detectDocumentType(filename, text) {
+  const lowerName = filename.toLowerCase();
+  const lowerText = text.toLowerCase();
+  
+  // German tax document patterns
+  const patterns = {
+    'lohnsteuerbescheinigung': ['lohnsteuer', 'bescheinigung', 'arbeitgeber', 'bruttoarbeitslohn'],
+    'spendenquittung': ['spende', 'zuwendung', 'gemeinnützig', 'donation', 'quittung'],
+    'rechnung': ['rechnung', 'invoice', 'betrag', 'mwst', 'umsatzsteuer'],
+    'quittung': ['quittung', 'beleg', 'kassenbon', 'receipt'],
+    'versicherung': ['versicherung', 'police', 'beitrag', 'insurance'],
+    'medizinisch': ['arzt', 'apotheke', 'medizin', 'kranken', 'gesundheit'],
+    'bildung': ['schule', 'universität', 'kurs', 'fortbildung', 'seminar'],
+    'handwerker': ['handwerker', 'renovierung', 'reparatur', 'sanierung'],
+    'kinderbetreuung': ['kindergarten', 'kita', 'betreuung', 'tagesmutter'],
+    'fahrtkosten': ['fahrt', 'kilometer', 'benzin', 'diesel', 'tankstelle']
+  };
+  
+  // Check filename first
+  for (const [type, keywords] of Object.entries(patterns)) {
+    if (keywords.some(keyword => lowerName.includes(keyword))) {
+      return type;
+    }
+  }
+  
+  // Check content
+  for (const [type, keywords] of Object.entries(patterns)) {
+    const matches = keywords.filter(keyword => lowerText.includes(keyword)).length;
+    if (matches >= 2) { // Require at least 2 keyword matches for content-based detection
+      return type;
+    }
+  }
+  
+  return 'sonstiges';
+}
+
+// Extract PDF text using external service or fallback methods
 async function extractPDFTextReliable(buffer, fileName) {
   try {
-    console.log('📄 Starting PDF text extraction...');
+    console.log(`🔍 Starting reliable PDF text extraction for: ${fileName}`);
     
-    // Method 1: Try pdf-parse with detailed error handling
+    // Method 1: Try Python PyPDF2 script first (most reliable)
     try {
-      console.log('📚 Attempting pdf-parse extraction...');
+      console.log('🐍 Attempting Python PyPDF2 script...');
       
-      // Check if pdf-parse can be imported
-      let pdfParse;
-      try {
-        pdfParse = await import('pdf-parse');
-        console.log('✅ pdf-parse imported successfully');
-      } catch (importError) {
-        console.error('❌ pdf-parse import failed:', importError.message);
-        throw new Error('pdf-parse not available');
-      }
+      const { spawn } = require('child_process');
+      const path = require('path');
       
-      // Try to process the PDF
-      console.log(`🔄 Processing PDF buffer (${buffer.length} bytes)...`);
-      const pdfData = await pdfParse.default(buffer);
+      const scriptPath = path.join(__dirname, '..', 'scripts', 'extract_pdf.py');
+      const base64Data = buffer.toString('base64');
       
-      console.log(`📊 pdf-parse result:`, {
-        pages: pdfData.numpages || 0,
-        textLength: pdfData.text ? pdfData.text.length : 0,
-        hasText: !!pdfData.text,
-        info: pdfData.info || {}
+      const result = await new Promise((resolve, reject) => {
+        const python = spawn('python3', [scriptPath]);
+        let output = '';
+        let errorOutput = '';
+        
+        python.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        python.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        python.on('close', (code) => {
+          if (code === 0) {
+            try {
+              const result = JSON.parse(output);
+              resolve(result);
+            } catch (parseError) {
+              reject(new Error(`Failed to parse Python script output: ${parseError.message}`));
+            }
+          } else {
+            reject(new Error(`Python script failed with code ${code}: ${errorOutput}`));
+          }
+        });
+        
+        python.on('error', (error) => {
+          reject(new Error(`Failed to start Python script: ${error.message}`));
+        });
+        
+        // Send base64 data to Python script
+        python.stdin.write(base64Data);
+        python.stdin.end();
       });
       
+      if (result.success && result.text && result.text.trim().length > 10) {
+        console.log(`✅ Python script extracted ${result.text_length} characters from ${result.pages} pages`);
+        console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
+        return result.text.trim();
+      } else {
+        console.log(`⚠️ Python script failed: ${result.error}`);
+      }
+      
+    } catch (pythonError) {
+      console.log('⚠️ Python script unavailable:', pythonError.message);
+    }
+    
+    // Method 2: Try external PDF service as fallback (if configured)
+    const pdfServiceUrl = process.env.PDF_SERVICE_URL;
+    if (pdfServiceUrl) {
+      try {
+        console.log(`🌐 Attempting external PDF service at: ${pdfServiceUrl}`);
+        
+        const FormData = require('form-data');
+        const fetch = require('node-fetch');
+        
+        const form = new FormData();
+        form.append('file', buffer, {
+          filename: fileName,
+          contentType: 'application/pdf'
+        });
+        
+        const response = await fetch(`${pdfServiceUrl}/extract`, {
+          method: 'POST',
+          body: form,
+          timeout: 10000 // 10 second timeout
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          if (result.success && result.extracted_text && result.extracted_text.trim().length > 10) {
+            console.log(`✅ External service extracted ${result.text_length} characters`);
+            return result.extracted_text.trim();
+          }
+        }
+        
+        console.log(`⚠️ External service failed: ${response.status}`);
+        
+      } catch (serviceError) {
+        console.log('⚠️ External PDF service unavailable:', serviceError.message);
+      }
+    }
+    
+    // Method 3: Try pdf-parse as fallback
+    try {
+      console.log('📚 Attempting pdf-parse fallback...');
+      const pdfParse = await import('pdf-parse');
+      
+      const pdfData = await pdfParse.default(buffer);
+      
       if (pdfData.text && pdfData.text.trim().length > 10) {
-        console.log(`✅ pdf-parse successfully extracted ${pdfData.text.length} characters`);
-        console.log(`📝 First 100 chars: ${pdfData.text.substring(0, 100)}...`);
+        console.log(`✅ pdf-parse extracted ${pdfData.text.length} characters`);
         return pdfData.text.trim();
       } else {
-        console.log('⚠️ pdf-parse returned empty or minimal text');
-        console.log('Raw result:', pdfData.text ? `"${pdfData.text}"` : 'null');
+        console.log('⚠️ pdf-parse returned minimal text');
       }
       
     } catch (pdfParseError) {
-      console.error('❌ pdf-parse failed:', pdfParseError.message);
-      console.error('Error name:', pdfParseError.name);
-      console.error('Error stack:', pdfParseError.stack);
-      
-      // Check for specific error types
-      if (pdfParseError.message.includes('Cannot read properties')) {
-        console.log('💡 Possible Node.js compatibility issue in serverless environment');
-      } else if (pdfParseError.message.includes('spawn')) {
-        console.log('💡 Possible process spawning issue in serverless environment');
-      } else if (pdfParseError.message.includes('ENOENT')) {
-        console.log('💡 Missing system dependencies in serverless environment');
-      }
+      console.log('⚠️ pdf-parse failed:', pdfParseError.message);
     }
     
-    // Method 2: Try direct PDF text extraction using regex patterns
+    // Method 4: Basic text extraction as last resort
     try {
-      console.log('🔍 Attempting direct text extraction...');
+      console.log('🔍 Attempting basic text extraction...');
       
       const bufferString = buffer.toString('latin1');
-      
-      // Look for text between BT (Begin Text) and ET (End Text) operators
-      const textBlocks = [];
-      const btPattern = /BT\s+(.*?)\s+ET/gs;
-      let match;
-      
-      while ((match = btPattern.exec(bufferString)) !== null) {
-        const textBlock = match[1];
-        
-        // Extract text from Tj and TJ operators
-        const tjMatches = textBlock.match(/\(([^)]*)\)\s*Tj/g);
-        if (tjMatches) {
-          tjMatches.forEach(tjMatch => {
-            const text = tjMatch.match(/\(([^)]*)\)/);
-            if (text && text[1]) {
-              textBlocks.push(text[1]);
-            }
-          });
-        }
-        
-        // Also try parentheses-enclosed text
-        const parenMatches = textBlock.match(/\(([^)]+)\)/g);
-        if (parenMatches) {
-          parenMatches.forEach(parenMatch => {
-            const text = parenMatch.slice(1, -1);
-            if (text.length > 1 && /[a-zA-Z0-9äöüÄÖÜß]/.test(text)) {
-              textBlocks.push(text);
-            }
-          });
-        }
-      }
-      
-      if (textBlocks.length > 0) {
-        const extractedText = textBlocks
-          .filter(text => text.length > 1)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (extractedText.length > 10) {
-          console.log(`✅ Direct extraction found ${extractedText.length} characters`);
-          return extractedText;
-        }
-      }
-      
-      console.log('⚠️ Direct extraction found no meaningful text');
-      
-    } catch (directError) {
-      console.error('❌ Direct extraction failed:', directError.message);
-    }
-    
-    // Method 3: Simple fallback - look for any readable text in the PDF
-    try {
-      console.log('🔍 Attempting simple text search...');
-      
-      const bufferString = buffer.toString('latin1');
-      
-      // Find all text in parentheses (common PDF text format)
       const allMatches = bufferString.match(/\(([^)]{2,})\)/g);
       
       if (allMatches && allMatches.length > 0) {
         const extractedText = allMatches
           .map(match => match.slice(1, -1))
           .filter(text => {
-            // Filter for meaningful text (contains letters/numbers, not just symbols)
             return text.length > 1 && 
                    /[a-zA-Z0-9äöüÄÖÜß]/.test(text) && 
                    !text.includes('endstream') && 
                    !text.includes('xref') &&
-                   !text.includes('trailer');
+                   !text.includes('trailer') &&
+                   !text.includes('ReportLab');
           })
           .join(' ')
           .replace(/\s+/g, ' ')
           .trim();
         
         if (extractedText.length > 10) {
-          console.log(`✅ Simple search found ${extractedText.length} characters`);
+          console.log(`✅ Basic extraction found ${extractedText.length} characters`);
           return extractedText;
         }
       }
       
-      console.log('⚠️ Simple search found no meaningful text');
-      
-    } catch (simpleError) {
-      console.error('❌ Simple search failed:', simpleError.message);
+    } catch (basicError) {
+      console.log('⚠️ Basic extraction failed:', basicError.message);
     }
     
     console.log('❌ All PDF extraction methods failed');
@@ -760,6 +896,27 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
           documentType: null // Will be determined during analysis
         });
         console.log('Document saved to database with ID:', document.id);
+        
+        // Also store in Qdrant for semantic search (if text was extracted)
+        if (extractedText && extractedText.length > 50) {
+          try {
+            await storeDocumentInQdrant(document.id.toString(), extractedText, {
+              filename: req.file.originalname,
+              type: req.file.mimetype,
+              size: req.file.size,
+              uploadDate: new Date().toISOString(),
+              documentType: detectDocumentType(req.file.originalname, extractedText),
+              language: detectLanguage(extractedText)
+            });
+            console.log('Document also stored in Qdrant for semantic search');
+          } catch (qdrantError) {
+            console.error('Failed to store in Qdrant (non-critical):', qdrantError);
+            // Don't fail the upload if Qdrant storage fails
+          }
+        } else {
+          console.log('Skipping Qdrant storage - insufficient text content');
+        }
+        
       } catch (dbError) {
         console.error('Failed to save to database:', dbError);
         return res.status(500).json({ error: 'Database storage failed: ' + dbError.message });
@@ -902,6 +1059,131 @@ app.delete('/api/documents/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete error:', error);
     res.status(500).json({ error: 'Delete failed: ' + error.message });
+  }
+});
+
+// Search documents using semantic similarity
+app.post('/api/documents/search', async (req, res) => {
+  try {
+    const { query, limit = 5 } = req.body;
+    
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+    
+    console.log(`🔍 Semantic search request: "${query}"`);
+    
+    try {
+      // Search in Qdrant using semantic similarity
+      const searchResults = await searchDocumentsInQdrant(query.trim(), limit);
+      
+      // Enhance results with database information if available
+      const enhancedResults = [];
+      
+      for (const result of searchResults) {
+        let enhancedResult = { ...result };
+        
+        // Try to get additional info from database
+        if (db && result.id) {
+          try {
+            const dbDocument = await db.getDocumentById(parseInt(result.id));
+            if (dbDocument) {
+              enhancedResult = {
+                ...enhancedResult,
+                id: dbDocument.id.toString(),
+                name: dbDocument.name,
+                type: dbDocument.file_type,
+                size: dbDocument.file_size,
+                uploadDate: dbDocument.upload_date,
+                extractedText: result.text || dbDocument.extracted_text,
+                similarity: result.score,
+                documentType: result.documentType || 'unknown'
+              };
+            }
+          } catch (dbError) {
+            console.log('Could not enhance result with database info:', dbError.message);
+          }
+        }
+        
+        enhancedResults.push(enhancedResult);
+      }
+      
+      console.log(`✅ Found ${enhancedResults.length} semantically similar documents`);
+      
+      res.json({
+        query: query,
+        results: enhancedResults,
+        total: enhancedResults.length,
+        searchType: 'semantic'
+      });
+      
+    } catch (qdrantError) {
+      console.error('Qdrant search failed:', qdrantError);
+      
+      // Fallback to simple text search in database
+      if (db) {
+        try {
+          console.log('Falling back to database text search...');
+          const dbDocuments = await db.getDocuments();
+          
+          const filteredResults = dbDocuments
+            .filter(doc => {
+              const searchText = (doc.extracted_text || '').toLowerCase();
+              const searchQuery = query.toLowerCase();
+              return searchText.includes(searchQuery) || doc.name.toLowerCase().includes(searchQuery);
+            })
+            .slice(0, limit)
+            .map(doc => ({
+              id: doc.id.toString(),
+              name: doc.name,
+              type: doc.file_type,
+              size: doc.file_size,
+              uploadDate: doc.upload_date,
+              extractedText: doc.extracted_text,
+              similarity: 0.5, // Default similarity for text search
+              documentType: detectDocumentType(doc.name, doc.extracted_text || ''),
+              searchType: 'text'
+            }));
+          
+          console.log(`📝 Fallback search found ${filteredResults.length} documents`);
+          
+          return res.json({
+            query: query,
+            results: filteredResults,
+            total: filteredResults.length,
+            searchType: 'text_fallback'
+          });
+          
+        } catch (dbError) {
+          console.error('Database fallback search failed:', dbError);
+        }
+      }
+      
+      // Final fallback to in-memory search
+      const memoryResults = documents
+        .filter(doc => {
+          const searchText = (doc.extractedText || '').toLowerCase();
+          const searchQuery = query.toLowerCase();
+          return searchText.includes(searchQuery) || doc.name.toLowerCase().includes(searchQuery);
+        })
+        .slice(0, limit)
+        .map(doc => ({
+          ...doc,
+          similarity: 0.3,
+          searchType: 'memory'
+        }));
+      
+      res.json({
+        query: query,
+        results: memoryResults,
+        total: memoryResults.length,
+        searchType: 'memory_fallback'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Search failed: ' + error.message });
   }
 });
 
