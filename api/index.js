@@ -1346,6 +1346,19 @@ function calculateGermanTaxRate(income) {
 
 // Don't serve static files in serverless function - handled by Vercel routing
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint to debug upload issues
+app.post('/api/test-upload', (req, res) => {
+  console.log('Test upload endpoint hit');
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+  res.json({ message: 'Test endpoint working', headers: req.headers });
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
