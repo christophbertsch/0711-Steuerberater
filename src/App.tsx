@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Upload, Calculator, Search, Brain, FileCheck, Users } from 'lucide-react';
+import { Upload, Calculator, Search, Brain, FileCheck, Users, Cloud } from 'lucide-react';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentAnalysis from './components/DocumentAnalysis';
 import TaxDeclarationGenerator from './components/TaxDeclarationGenerator';
 import TaxResearch from './components/TaxResearch';
 import SpecializedAgents from './components/SpecializedAgents';
+import BlobStorageManager from './components/BlobStorageManager';
 import { Document } from './types';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
     { id: 'research', label: 'Steuerforschung 2024', icon: Search },
     { id: 'agents', label: 'Spezialisierte Agenten', icon: Users },
     { id: 'declaration', label: 'Steuererklärung', icon: Calculator },
+    { id: 'storage', label: 'Blob Storage', icon: Cloud },
   ];
 
   return (
@@ -87,6 +89,10 @@ function App() {
         
         {activeTab === 'declaration' && (
           <TaxDeclarationGenerator documents={documents} />
+        )}
+        
+        {activeTab === 'storage' && (
+          <BlobStorageManager />
         )}
       </main>
     </div>

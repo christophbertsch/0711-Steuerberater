@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { put, del, list } from '@vercel/blob';
 
 // Load environment variables
 dotenv.config();
@@ -17,10 +18,16 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 56534;
 
-// Initialize OpenAI with environment variable
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI with environment variable (optional for blob storage functionality)
+let openai = null;
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-api-key-here') {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
+  console.log('OpenAI API initialized');
+} else {
+  console.log('OpenAI API key not configured - AI analysis will use mock responses');
+}
 
 // Middleware
 app.use(cors({
@@ -38,25 +45,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static('dist'));
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for file uploads (using memory storage for Vercel Blob)
 const upload = multer({ 
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
@@ -78,21 +69,23 @@ let documents = [];
 let documentAnalyses = {};
 
 // Helper function to extract text from different file types
-async function extractTextFromFile(filePath, mimeType) {
+async function extractTextFromFile(blobUrl, mimeType, fileName, fileSize) {
   try {
     if (mimeType === 'application/pdf') {
       // For demonstration, use file name and size as content
-      const stats = fs.statSync(filePath);
-      const fileName = path.basename(filePath);
-      return `PDF Document: ${fileName}, Size: ${stats.size} bytes. This appears to be a tax-related document based on the filename.`;
+      return `PDF Document: ${fileName}, Size: ${fileSize} bytes. This appears to be a tax-related document based on the filename.`;
     } else if (mimeType.startsWith('image/')) {
       // For images, you would use OCR like Tesseract
       return 'OCR text extraction would be implemented here';
-    } else if (mimeType.includes('xml') || filePath.endsWith('.xml')) {
-      const content = fs.readFileSync(filePath, 'utf8');
+    } else if (mimeType.includes('xml') || fileName.endsWith('.xml')) {
+      // Fetch content from Vercel Blob
+      const response = await fetch(blobUrl);
+      const content = await response.text();
       return content;
     } else if (mimeType.includes('text')) {
-      const content = fs.readFileSync(filePath, 'utf8');
+      // Fetch content from Vercel Blob
+      const response = await fetch(blobUrl);
+      const content = await response.text();
       return content;
     }
     return '';
@@ -105,6 +98,17 @@ async function extractTextFromFile(filePath, mimeType) {
 // Helper function to classify document type using AI
 async function classifyDocument(content, filename) {
   try {
+    if (!openai) {
+      // Mock classification based on filename
+      const lowerName = filename.toLowerCase();
+      if (lowerName.includes('est') || lowerName.includes('steuer')) return 'tax_form';
+      if (lowerName.includes('rechnung') || lowerName.includes('invoice')) return 'invoice';
+      if (lowerName.includes('quittung') || lowerName.includes('receipt')) return 'receipt';
+      if (lowerName.includes('spende') || lowerName.includes('donation')) return 'donation';
+      if (lowerName.includes('lohn') || lowerName.includes('gehalt')) return 'salary';
+      return 'other';
+    }
+
     const prompt = `
     Analyze this document content and filename to classify the document type.
     
@@ -140,7 +144,7 @@ async function classifyDocument(content, filename) {
 async function generateExpertOpinion(documentType, extractedContent, filename) {
   try {
     // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openai-api-key-here') {
+    if (!openai) {
       console.log('OpenAI API key not configured, returning mock analysis');
       return {
         summary: `Mock-Analyse für ${filename}: OpenAI API-Schlüssel nicht konfiguriert. Bitte setzen Sie OPENAI_API_KEY in der .env Datei für echte KI-Analyse.`,
@@ -305,20 +309,38 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Check if Vercel Blob token is configured
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
+      });
+    }
+
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const fileName = `documents/${uniqueSuffix}-${req.file.originalname}`;
+
+    // Upload to Vercel Blob
+    const blob = await put(fileName, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+
     const document = {
       id: Date.now().toString(),
       name: req.file.originalname,
       type: req.file.mimetype,
       size: req.file.size,
       uploadDate: new Date(),
-      filePath: req.file.path
+      blobUrl: blob.url,
+      blobPathname: blob.pathname
     };
 
     documents.push(document);
     res.json(document);
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ error: 'Upload failed' });
+    res.status(500).json({ error: 'Upload failed: ' + error.message });
   }
 });
 
@@ -328,26 +350,36 @@ app.get('/api/documents', (req, res) => {
 });
 
 // Delete document
-app.delete('/api/documents/:id', (req, res) => {
-  const { id } = req.params;
-  const index = documents.findIndex(doc => doc.id === id);
-  
-  if (index === -1) {
-    return res.status(404).json({ error: 'Document not found' });
-  }
+app.delete('/api/documents/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const index = documents.findIndex(doc => doc.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
 
-  const document = documents[index];
-  
-  // Delete file from filesystem
-  if (fs.existsSync(document.filePath)) {
-    fs.unlinkSync(document.filePath);
+    const document = documents[index];
+    
+    // Delete file from Vercel Blob if blobUrl exists
+    if (document.blobUrl && process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        await del(document.blobUrl);
+      } catch (blobError) {
+        console.error('Error deleting from Vercel Blob:', blobError);
+        // Continue with deletion from memory even if blob deletion fails
+      }
+    }
+    
+    // Remove from arrays
+    documents.splice(index, 1);
+    delete documentAnalyses[id];
+    
+    res.json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: 'Delete failed: ' + error.message });
   }
-  
-  // Remove from arrays
-  documents.splice(index, 1);
-  delete documentAnalyses[id];
-  
-  res.json({ message: 'Document deleted successfully' });
 });
 
 // Analyze document
@@ -366,7 +398,7 @@ app.post('/api/ai/analyze', async (req, res) => {
     }
 
     // Extract text from document
-    const content = await extractTextFromFile(document.filePath, document.type);
+    const content = await extractTextFromFile(document.blobUrl || document.filePath, document.type, document.name, document.size);
     
     // Classify document
     const documentType = await classifyDocument(content, document.name);
@@ -400,6 +432,78 @@ app.post('/api/research/search', async (req, res) => {
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// List all files in Vercel Blob Storage
+app.get('/api/blob/list', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
+      });
+    }
+
+    const { blobs } = await list();
+    res.json(blobs);
+  } catch (error) {
+    console.error('Blob list error:', error);
+    res.status(500).json({ error: 'Failed to list blob files: ' + error.message });
+  }
+});
+
+// Migrate existing local files to Vercel Blob Storage
+app.post('/api/blob/migrate', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ 
+        error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
+      });
+    }
+
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      return res.json({ message: 'No local uploads directory found', migratedFiles: [] });
+    }
+
+    const files = fs.readdirSync(uploadsDir);
+    const migratedFiles = [];
+
+    for (const file of files) {
+      const filePath = path.join(uploadsDir, file);
+      const stats = fs.statSync(filePath);
+      
+      if (stats.isFile()) {
+        try {
+          const fileBuffer = fs.readFileSync(filePath);
+          const fileName = `documents/migrated-${Date.now()}-${file}`;
+          
+          // Upload to Vercel Blob
+          const blob = await put(fileName, fileBuffer, {
+            access: 'public',
+          });
+
+          migratedFiles.push({
+            originalPath: filePath,
+            blobUrl: blob.url,
+            fileName: file,
+            size: stats.size
+          });
+
+          console.log(`Migrated ${file} to Vercel Blob: ${blob.url}`);
+        } catch (error) {
+          console.error(`Failed to migrate ${file}:`, error);
+        }
+      }
+    }
+
+    res.json({ 
+      message: `Successfully migrated ${migratedFiles.length} files to Vercel Blob Storage`,
+      migratedFiles 
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Migration failed: ' + error.message });
   }
 });
 

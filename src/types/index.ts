@@ -4,7 +4,9 @@ export interface Document {
   type: string;
   size: number;
   uploadDate: Date;
-  filePath?: string;
+  filePath?: string; // Legacy field for backward compatibility
+  blobUrl?: string; // Vercel Blob Storage URL
+  blobPathname?: string; // Vercel Blob pathname
   content?: string;
   analysis?: DocumentAnalysis;
 }

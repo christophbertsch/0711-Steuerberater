@@ -51,7 +51,9 @@ class DocumentService {
             type: file.type,
             size: file.size,
             uploadDate: new Date(),
-            filePath: `mock-uploads/${file.name}`
+            filePath: `mock-uploads/${file.name}`, // Legacy field
+            blobUrl: `https://mock-blob-url.vercel-storage.com/documents/${file.name}`, // Mock blob URL
+            blobPathname: `documents/${file.name}`
           });
         }, 1000);
       });
@@ -141,6 +143,34 @@ class DocumentService {
     }
 
     return '';
+  }
+
+  async listBlobFiles(): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/blob/list`);
+      if (!response.ok) {
+        throw new Error('Failed to list blob files');
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Failed to list blob files:', error);
+      return [];
+    }
+  }
+
+  async migrateLocalFiles(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/blob/migrate`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to migrate files');
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Failed to migrate files:', error);
+      throw error;
+    }
   }
 }
 
