@@ -98,34 +98,47 @@ async function initApp() {
 let documents = [];
 let documentAnalyses = {};
 
-// Simple PDF text extraction that works in serverless environments
-async function extractPDFTextSimple(buffer) {
+// Extract PDF text using PostgreSQL pgpdf extension
+async function extractPDFTextWithPostgreSQL(buffer, fileName) {
+  if (!db) {
+    throw new Error('Database not available');
+  }
+  
   try {
-    // Try pdf-parse with minimal configuration
-    const pdfParse = await import('pdf-parse');
-    console.log('📚 pdf-parse imported successfully');
+    console.log('🐘 Using PostgreSQL pgpdf extension for PDF extraction...');
     
-    const options = {
-      // Minimal options for better serverless compatibility
-      normalizeWhitespace: true,
-      disableCombineTextItems: false,
-      max: 0 // No page limit
-    };
+    // Store the PDF buffer in PostgreSQL and extract text using pgpdf
+    const query = `
+      SELECT pdf_read_bytes($1::bytea) as extracted_text;
+    `;
     
-    console.log('🔄 Processing PDF with pdf-parse...');
-    const pdfData = await pdfParse.default(buffer, options);
+    console.log(`📄 Processing PDF: ${fileName} (${buffer.length} bytes)`);
+    const result = await db.query(query, [buffer]);
     
-    console.log(`📊 PDF processed: ${pdfData.numpages || 0} pages, ${pdfData.text ? pdfData.text.length : 0} characters`);
-    
-    if (pdfData.text && pdfData.text.trim().length > 0) {
-      return pdfData.text;
+    if (result.rows && result.rows.length > 0) {
+      const extractedText = result.rows[0].extracted_text;
+      console.log(`✅ PostgreSQL pgpdf extracted ${extractedText ? extractedText.length : 0} characters`);
+      
+      if (extractedText && extractedText.trim().length > 10) {
+        return extractedText.trim();
+      } else {
+        console.log('⚠️ pgpdf returned minimal text');
+        return null;
+      }
     } else {
-      console.log('⚠️ pdf-parse returned empty text');
+      console.log('❌ No result from pgpdf extraction');
       return null;
     }
     
   } catch (error) {
-    console.error('❌ Simple PDF extraction failed:', error.message);
+    console.error('❌ PostgreSQL PDF extraction failed:', error.message);
+    
+    // Check if pgpdf extension is not installed
+    if (error.message.includes('function pdf_read_bytes') || error.message.includes('does not exist')) {
+      console.log('💡 pgpdf extension not available, will need to install it');
+      throw new Error('pgpdf extension not installed in PostgreSQL');
+    }
+    
     throw error;
   }
 }
@@ -138,23 +151,42 @@ async function extractTextFromBuffer(buffer, mimeType, fileName) {
     if (mimeType === 'application/pdf') {
       console.log(`Processing PDF buffer: ${fileName} (${buffer.length} bytes)`);
       
-      // Simple approach: Try basic PDF text extraction with better error handling
+      // Method 1: Try PostgreSQL pgpdf extension (best approach)
       try {
-        console.log('🔍 Attempting simple PDF text extraction...');
+        console.log('🐘 Attempting PostgreSQL pgpdf extraction...');
         
-        // Try to extract text using a simple approach that works in serverless
-        const pdfText = await extractPDFTextSimple(buffer);
+        const pdfText = await extractPDFTextWithPostgreSQL(buffer, fileName);
         
         if (pdfText && pdfText.trim().length > 10) {
-          console.log(`✅ Successfully extracted ${pdfText.length} characters from PDF`);
+          console.log(`✅ Successfully extracted ${pdfText.length} characters using PostgreSQL pgpdf`);
           return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfText.trim()}`;
         } else {
-          console.log(`⚠️ PDF extraction returned minimal text (${pdfText ? pdfText.length : 0} chars)`);
+          console.log(`⚠️ PostgreSQL pgpdf returned minimal text (${pdfText ? pdfText.length : 0} chars)`);
         }
         
-      } catch (pdfError) {
-        console.error('❌ PDF text extraction failed:', pdfError.message);
-        console.error('Full error:', pdfError);
+      } catch (pgpdfError) {
+        console.error('❌ PostgreSQL pgpdf extraction failed:', pgpdfError.message);
+        
+        // If pgpdf extension is not installed, we'll need to install it
+        if (pgpdfError.message.includes('pgpdf extension not installed')) {
+          console.log('💡 Need to install pgpdf extension in PostgreSQL');
+        }
+      }
+      
+      // Method 2: Fallback to simple Node.js extraction if PostgreSQL fails
+      try {
+        console.log('🔄 Attempting Node.js pdf-parse fallback...');
+        
+        const pdfParse = await import('pdf-parse');
+        const pdfData = await pdfParse.default(buffer);
+        
+        if (pdfData.text && pdfData.text.trim().length > 10) {
+          console.log(`✅ Successfully extracted ${pdfData.text.length} characters using pdf-parse fallback`);
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfData.text.trim()}`;
+        }
+        
+      } catch (fallbackError) {
+        console.error('❌ Node.js pdf-parse fallback also failed:', fallbackError.message);
       }
       
       // If PDF extraction fails, use intelligent analysis based on filename
