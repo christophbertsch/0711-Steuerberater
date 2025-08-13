@@ -4,8 +4,10 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 import OpenAI from 'openai';
 import fetch from 'node-fetch';
+import FormData from 'form-data';
 import dotenv from 'dotenv';
 import { QdrantClient } from '@qdrant/js-client-rest';
 // Removed Vercel Blob dependency - using database storage instead
@@ -78,10 +80,7 @@ const upload = multer({
   }
 });
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI client already initialized above
 
 // Initialize Qdrant client
 const qdrant = new QdrantClient({
@@ -240,8 +239,7 @@ async function extractPDFTextReliable(buffer, fileName) {
     try {
       console.log('🐍 Attempting Python PyPDF2 script...');
       
-      const { spawn } = require('child_process');
-      const path = require('path');
+      // spawn and path already imported at top
       
       const scriptPath = path.join(__dirname, '..', 'scripts', 'extract_pdf.py');
       const base64Data = buffer.toString('base64');
@@ -299,8 +297,7 @@ async function extractPDFTextReliable(buffer, fileName) {
       try {
         console.log(`🌐 Attempting external PDF service at: ${pdfServiceUrl}`);
         
-        const FormData = require('form-data');
-        const fetch = require('node-fetch');
+        // FormData and fetch already imported at top
         
         const form = new FormData();
         form.append('file', buffer, {
