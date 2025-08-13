@@ -223,7 +223,7 @@ const DocumentAnalysis: React.FC<DocumentAnalysisProps> = ({ documents }) => {
                         <div className="flex items-center justify-between mb-2">
                           <h5 className="font-medium text-gray-900">{deduction.category}</h5>
                           <span className="text-lg font-semibold text-green-600">
-                            €{deduction.amount.toFixed(2)}
+                            {deduction.amount ? `€${deduction.amount.toFixed(2)}` : 'Betrag unbekannt'}
                           </span>
                         </div>
                         <p className="text-gray-600 text-sm mb-2">{deduction.description}</p>
