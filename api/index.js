@@ -107,52 +107,83 @@ async function extractTextFromBuffer(buffer, mimeType, fileName) {
       console.log(`Processing PDF buffer: ${fileName} (${buffer.length} bytes)`);
       
       try {
-        // Use pgpdf-http service for reliable PDF text extraction
-        console.log('Using pgpdf-http service for PDF text extraction...');
+        // Use PDF.js with proper configuration for serverless environment
+        console.log('Using PDF.js for text extraction...');
         
-        const formData = new FormData();
-        const blob = new Blob([buffer], { type: 'application/pdf' });
-        formData.append('file', blob, fileName);
+        // Import PDF.js with proper configuration
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
         
-        const response = await fetch('https://tselai.com/pgpdf-http/pdf', {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Accept': 'text/plain'
-          }
+        // Configure PDF.js for serverless environment
+        pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+        
+        const loadingTask = pdfjsLib.getDocument({
+          data: buffer,
+          useSystemFonts: true,
+          disableFontFace: true,
+          verbosity: 0
         });
         
-        if (response.ok) {
-          const extractedText = await response.text();
-          console.log(`pgpdf-http extracted ${extractedText.length} characters`);
-          
-          if (extractedText && extractedText.trim().length > 10) {
-            console.log(`Successfully extracted ${extractedText.length} characters using pgpdf-http`);
-            return `PDF Document: ${fileName}\n\nExtracted Content:\n${extractedText.trim()}`;
-          } else {
-            console.log('pgpdf-http extracted minimal text, trying local fallback');
+        const pdf = await loadingTask.promise;
+        console.log(`PDF loaded: ${pdf.numPages} pages`);
+        
+        let fullText = '';
+        const maxPages = Math.min(pdf.numPages, 20); // Process up to 20 pages
+        
+        for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+          try {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // Extract text items and join them properly
+            const pageText = textContent.items
+              .map(item => item.str)
+              .filter(str => str.trim().length > 0)
+              .join(' ');
+            
+            if (pageText.trim().length > 0) {
+              fullText += `${pageText}\n`;
+            }
+            
+            console.log(`Page ${pageNum}: extracted ${pageText.length} characters`);
+          } catch (pageError) {
+            console.log(`Error processing page ${pageNum}:`, pageError.message);
           }
-        } else {
-          console.log(`pgpdf-http service returned ${response.status}: ${response.statusText}`);
         }
         
-      } catch (pgpdfError) {
-        console.error('pgpdf-http service failed:', pgpdfError);
-        console.log('pgpdf-http failed, trying local PDF processing');
+        if (fullText.trim().length > 20) {
+          console.log(`Successfully extracted ${fullText.length} characters using PDF.js`);
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${fullText.trim()}`;
+        } else {
+          console.log(`PDF.js extracted minimal text (${fullText.length} chars)`);
+        }
+        
+      } catch (pdfjsError) {
+        console.error('PDF.js extraction failed:', pdfjsError);
+        console.log('PDF.js failed, trying pdf-parse fallback');
       }
       
-      // Fallback to local PDF processing if pgpdf-http fails
+      // Fallback to pdf-parse
       try {
-        console.log('Attempting local pdf-parse as fallback...');
+        console.log('Attempting pdf-parse as fallback...');
         const pdfParse = await import('pdf-parse');
-        const pdfData = await pdfParse.default(buffer);
+        
+        const pdfData = await pdfParse.default(buffer, {
+          // Options for better text extraction
+          normalizeWhitespace: false,
+          disableCombineTextItems: false
+        });
+        
+        console.log(`pdf-parse extracted: ${pdfData.text ? pdfData.text.length : 0} characters from ${pdfData.numpages || 0} pages`);
         
         if (pdfData.text && pdfData.text.trim().length > 10) {
-          console.log(`Successfully extracted ${pdfData.text.length} characters using pdf-parse fallback`);
+          console.log(`Successfully extracted ${pdfData.text.length} characters using pdf-parse`);
           return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfData.text.trim()}`;
+        } else {
+          console.log('pdf-parse extracted minimal text');
         }
       } catch (pdfParseError) {
-        console.log('Local pdf-parse fallback also failed:', pdfParseError.message);
+        console.error('pdf-parse fallback failed:', pdfParseError);
+        console.log('pdf-parse error:', pdfParseError.message);
       }
       
       // Final fallback to intelligent metadata analysis
