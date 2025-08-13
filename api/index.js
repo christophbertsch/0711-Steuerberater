@@ -344,8 +344,39 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
 });
 
 // Get all documents
-app.get('/api/documents', (req, res) => {
-  res.json(documents);
+app.get('/api/documents', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      // Return in-memory documents when blob storage not configured
+      return res.json(documents);
+    }
+
+    // Get real documents from Vercel Blob
+    const { blobs } = await list();
+    
+    const blobDocuments = blobs.map((blob, index) => {
+      // Extract filename from pathname
+      const filename = blob.pathname.split('/').pop() || 'unknown.pdf';
+      // Remove the timestamp prefix from filename
+      const cleanName = filename.replace(/^\d+-\d+-/, '');
+      
+      return {
+        id: (index + 1).toString(),
+        name: cleanName,
+        type: 'application/pdf',
+        size: blob.size,
+        uploadDate: blob.uploadedAt,
+        blobUrl: blob.url,
+        blobPathname: blob.pathname
+      };
+    });
+
+    res.json(blobDocuments);
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    // Fallback to in-memory documents on error
+    res.json(documents);
+  }
 });
 
 // Delete document
