@@ -415,20 +415,30 @@ async function searchTaxLaw(query) {
 // Document upload
 app.post('/api/documents/upload', upload.single('document'), async (req, res) => {
   try {
+    console.log('Upload request received');
+    
     if (!req.file) {
+      console.log('No file in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    console.log('File received:', req.file.originalname, req.file.size, 'bytes');
+
     // Check if Vercel Blob token is configured
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.log('BLOB_READ_WRITE_TOKEN not configured');
       return res.status(500).json({ 
         error: 'Vercel Blob Storage not configured. Please set BLOB_READ_WRITE_TOKEN in your environment variables.' 
       });
     }
 
+    console.log('BLOB_READ_WRITE_TOKEN is configured');
+
     // Generate unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const fileName = `documents/${uniqueSuffix}-${req.file.originalname}`;
+
+    console.log('Uploading to blob:', fileName);
 
     // Upload to Vercel Blob
     const blob = await put(fileName, req.file.buffer, {
@@ -436,11 +446,14 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       contentType: req.file.mimetype,
     });
 
+    console.log('Blob upload successful:', blob.url);
+
     // Extract text content immediately during upload
     let extractedText = '';
     let textBlob = null;
     
     try {
+      console.log('Starting text extraction');
       extractedText = await extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname);
       console.log(`Successfully extracted ${extractedText.length} characters from ${req.file.originalname}`);
       
@@ -450,6 +463,7 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
         access: 'public',
         contentType: 'text/plain',
       });
+      console.log('Text blob upload successful:', textBlob.url);
       
     } catch (extractError) {
       console.error('Text extraction failed during upload:', extractError);
@@ -469,7 +483,10 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
       extractedText: extractedText.substring(0, 1000) // Store first 1000 chars in memory for quick access
     };
 
+    console.log('Document created, adding to array');
     documents.push(document);
+    
+    console.log('Sending response');
     res.json(document);
   } catch (error) {
     console.error('Upload error:', error);
