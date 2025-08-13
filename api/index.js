@@ -98,6 +98,38 @@ async function initApp() {
 let documents = [];
 let documentAnalyses = {};
 
+// Simple PDF text extraction that works in serverless environments
+async function extractPDFTextSimple(buffer) {
+  try {
+    // Try pdf-parse with minimal configuration
+    const pdfParse = await import('pdf-parse');
+    console.log('📚 pdf-parse imported successfully');
+    
+    const options = {
+      // Minimal options for better serverless compatibility
+      normalizeWhitespace: true,
+      disableCombineTextItems: false,
+      max: 0 // No page limit
+    };
+    
+    console.log('🔄 Processing PDF with pdf-parse...');
+    const pdfData = await pdfParse.default(buffer, options);
+    
+    console.log(`📊 PDF processed: ${pdfData.numpages || 0} pages, ${pdfData.text ? pdfData.text.length : 0} characters`);
+    
+    if (pdfData.text && pdfData.text.trim().length > 0) {
+      return pdfData.text;
+    } else {
+      console.log('⚠️ pdf-parse returned empty text');
+      return null;
+    }
+    
+  } catch (error) {
+    console.error('❌ Simple PDF extraction failed:', error.message);
+    throw error;
+  }
+}
+
 // Helper function to extract text from buffer during upload
 async function extractTextFromBuffer(buffer, mimeType, fileName) {
   try {
@@ -106,88 +138,27 @@ async function extractTextFromBuffer(buffer, mimeType, fileName) {
     if (mimeType === 'application/pdf') {
       console.log(`Processing PDF buffer: ${fileName} (${buffer.length} bytes)`);
       
+      // Simple approach: Try basic PDF text extraction with better error handling
       try {
-        // Use PDF.js with proper configuration for serverless environment
-        console.log('Using PDF.js for text extraction...');
+        console.log('🔍 Attempting simple PDF text extraction...');
         
-        // Import PDF.js with proper configuration
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+        // Try to extract text using a simple approach that works in serverless
+        const pdfText = await extractPDFTextSimple(buffer);
         
-        // Configure PDF.js for serverless environment
-        pdfjsLib.GlobalWorkerOptions.workerSrc = null;
-        
-        const loadingTask = pdfjsLib.getDocument({
-          data: buffer,
-          useSystemFonts: true,
-          disableFontFace: true,
-          verbosity: 0
-        });
-        
-        const pdf = await loadingTask.promise;
-        console.log(`PDF loaded: ${pdf.numPages} pages`);
-        
-        let fullText = '';
-        const maxPages = Math.min(pdf.numPages, 20); // Process up to 20 pages
-        
-        for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-          try {
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            
-            // Extract text items and join them properly
-            const pageText = textContent.items
-              .map(item => item.str)
-              .filter(str => str.trim().length > 0)
-              .join(' ');
-            
-            if (pageText.trim().length > 0) {
-              fullText += `${pageText}\n`;
-            }
-            
-            console.log(`Page ${pageNum}: extracted ${pageText.length} characters`);
-          } catch (pageError) {
-            console.log(`Error processing page ${pageNum}:`, pageError.message);
-          }
-        }
-        
-        if (fullText.trim().length > 20) {
-          console.log(`Successfully extracted ${fullText.length} characters using PDF.js`);
-          return `PDF Document: ${fileName}\n\nExtracted Content:\n${fullText.trim()}`;
+        if (pdfText && pdfText.trim().length > 10) {
+          console.log(`✅ Successfully extracted ${pdfText.length} characters from PDF`);
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfText.trim()}`;
         } else {
-          console.log(`PDF.js extracted minimal text (${fullText.length} chars)`);
+          console.log(`⚠️ PDF extraction returned minimal text (${pdfText ? pdfText.length : 0} chars)`);
         }
         
-      } catch (pdfjsError) {
-        console.error('PDF.js extraction failed:', pdfjsError);
-        console.log('PDF.js failed, trying pdf-parse fallback');
+      } catch (pdfError) {
+        console.error('❌ PDF text extraction failed:', pdfError.message);
+        console.error('Full error:', pdfError);
       }
       
-      // Fallback to pdf-parse
-      try {
-        console.log('Attempting pdf-parse as fallback...');
-        const pdfParse = await import('pdf-parse');
-        
-        const pdfData = await pdfParse.default(buffer, {
-          // Options for better text extraction
-          normalizeWhitespace: false,
-          disableCombineTextItems: false
-        });
-        
-        console.log(`pdf-parse extracted: ${pdfData.text ? pdfData.text.length : 0} characters from ${pdfData.numpages || 0} pages`);
-        
-        if (pdfData.text && pdfData.text.trim().length > 10) {
-          console.log(`Successfully extracted ${pdfData.text.length} characters using pdf-parse`);
-          return `PDF Document: ${fileName}\n\nExtracted Content:\n${pdfData.text.trim()}`;
-        } else {
-          console.log('pdf-parse extracted minimal text');
-        }
-      } catch (pdfParseError) {
-        console.error('pdf-parse fallback failed:', pdfParseError);
-        console.log('pdf-parse error:', pdfParseError.message);
-      }
-      
-      // Final fallback to intelligent metadata analysis
-      console.log('All PDF extraction methods failed, using intelligent metadata analysis');
+      // If PDF extraction fails, use intelligent analysis based on filename
+      console.log('📝 Using intelligent metadata analysis as fallback');
       return await getIntelligentMetadataAnalysis(fileName, buffer.length);
       
     } else if (mimeType.startsWith('image/')) {
