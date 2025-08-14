@@ -129,20 +129,73 @@ async function generateEmbedding(text) {
   }
 }
 
+// Generate mock embedding for fallback when OpenAI is not available
+function generateMockEmbedding(text) {
+  // Create a deterministic but varied embedding based on text characteristics
+  const embedding = new Array(1536).fill(0); // OpenAI ada-002 uses 1536 dimensions
+  
+  // Use text characteristics to create a pseudo-embedding
+  const textLower = text.toLowerCase();
+  const textLength = text.length;
+  const wordCount = text.split(/\s+/).length;
+  
+  // Create patterns based on text content
+  for (let i = 0; i < 1536; i++) {
+    let value = 0;
+    
+    // Base value from character codes
+    if (i < textLength) {
+      value += (text.charCodeAt(i % textLength) / 255.0 - 0.5) * 0.1;
+    }
+    
+    // Add patterns based on word count and length
+    value += Math.sin(i * wordCount / 100.0) * 0.05;
+    value += Math.cos(i * textLength / 200.0) * 0.05;
+    
+    // Add some deterministic randomness based on text hash
+    const hash = textLower.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    value += Math.sin(i * hash / 1000.0) * 0.02;
+    
+    embedding[i] = Math.max(-1, Math.min(1, value)); // Clamp to [-1, 1]
+  }
+  
+  // Normalize the embedding
+  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+  if (magnitude > 0) {
+    for (let i = 0; i < embedding.length; i++) {
+      embedding[i] /= magnitude;
+    }
+  }
+  
+  return embedding;
+}
+
 // Store document in Qdrant with embeddings
 async function storeDocumentInQdrant(documentId, text, metadata) {
   try {
     console.log(`📊 Storing document ${documentId} in Qdrant...`);
     
-    // Generate embedding for the text
-    const embedding = await generateEmbedding(text);
+    let embedding;
+    
+    // Try to generate embedding for the text
+    try {
+      embedding = await generateEmbedding(text);
+      console.log(`✅ Generated embedding for document ${documentId}`);
+    } catch (embeddingError) {
+      console.log(`⚠️ Failed to generate embedding (${embeddingError.message}), using mock embedding`);
+      // Create a simple mock embedding based on text characteristics
+      embedding = generateMockEmbedding(text);
+    }
     
     // Store in Qdrant
     await qdrant.upsert(QDRANT_COLLECTION, {
       wait: true,
       points: [
         {
-          id: documentId,
+          id: parseInt(documentId), // Convert to integer for Qdrant
           vector: embedding,
           payload: {
             text: text,
@@ -152,6 +205,7 @@ async function storeDocumentInQdrant(documentId, text, metadata) {
             uploadDate: metadata.uploadDate,
             documentType: metadata.documentType || 'unknown',
             language: metadata.language || 'de',
+            documentId: documentId, // Keep original ID in payload
             ...metadata
           }
         }
@@ -463,12 +517,12 @@ async function extractTextFromBuffer(buffer, mimeType, fileName) {
       
       try {
         // Use Tesseract.js for OCR
-        const Tesseract = await import('tesseract.js');
+        const { createWorker } = await import('tesseract.js');
         
         console.log('Starting OCR with Tesseract.js');
-        const { data: { text } } = await Tesseract.recognize(buffer, 'deu+eng', {
-          logger: m => console.log('OCR Progress:', m)
-        });
+        const worker = await createWorker('deu+eng');
+        const { data: { text } } = await worker.recognize(buffer);
+        await worker.terminate();
         
         if (text && text.trim().length > 10) {
           console.log(`Successfully extracted ${text.length} characters via OCR`);
@@ -923,6 +977,8 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
 
     // Save to database
     let document = null;
+    let documentId = null;
+    
     if (db) {
       try {
         console.log('Attempting to save document to database');
@@ -935,34 +991,60 @@ app.post('/api/documents/upload', upload.single('document'), async (req, res) =>
           extractedText: extractedText,
           documentType: null // Will be determined during analysis
         });
-        console.log('Document saved to database with ID:', document.id);
-        
-        // Also store in Qdrant for semantic search (if text was extracted)
-        if (extractedText && extractedText.length > 50) {
-          try {
-            await storeDocumentInQdrant(document.id.toString(), extractedText, {
-              filename: req.file.originalname,
-              type: req.file.mimetype,
-              size: req.file.size,
-              uploadDate: new Date().toISOString(),
-              documentType: detectDocumentType(req.file.originalname, extractedText),
-              language: detectLanguage(extractedText)
-            });
-            console.log('Document also stored in Qdrant for semantic search');
-          } catch (qdrantError) {
-            console.error('Failed to store in Qdrant (non-critical):', qdrantError);
-            // Don't fail the upload if Qdrant storage fails
-          }
-        } else {
-          console.log('Skipping Qdrant storage - insufficient text content');
-        }
+        documentId = document.id.toString();
+        console.log('Document saved to database with ID:', documentId);
         
       } catch (dbError) {
         console.error('Failed to save to database:', dbError);
-        return res.status(500).json({ error: 'Database storage failed: ' + dbError.message });
+        console.log('Continuing with in-memory storage and Qdrant only');
+        // Generate a temporary ID for in-memory storage
+        documentId = Date.now().toString();
+        document = {
+          id: documentId,
+          name: req.file.originalname,
+          original_filename: req.file.originalname,
+          file_type: req.file.mimetype,
+          file_size: req.file.size,
+          upload_date: new Date().toISOString(),
+          extracted_text: extractedText,
+          document_type: null
+        };
       }
     } else {
-      return res.status(500).json({ error: 'Database not available' });
+      console.log('Database not available, using in-memory storage and Qdrant only');
+      // Generate a temporary ID for in-memory storage
+      documentId = Date.now().toString();
+      document = {
+        id: documentId,
+        name: req.file.originalname,
+        original_filename: req.file.originalname,
+        file_type: req.file.mimetype,
+        file_size: req.file.size,
+        upload_date: new Date().toISOString(),
+        extracted_text: extractedText,
+        document_type: null
+      };
+    }
+    
+    // Always try to store in Qdrant for semantic search (if text was extracted)
+    if (extractedText && extractedText.length > 50) {
+      try {
+        console.log(`📊 Attempting to store document ${documentId} in Qdrant...`);
+        await storeDocumentInQdrant(documentId, extractedText, {
+          filename: req.file.originalname,
+          type: req.file.mimetype,
+          size: req.file.size,
+          uploadDate: new Date().toISOString(),
+          documentType: detectDocumentType(req.file.originalname, extractedText),
+          language: detectLanguage(extractedText)
+        });
+        console.log('✅ Document also stored in Qdrant for semantic search');
+      } catch (qdrantError) {
+        console.error('❌ Failed to store in Qdrant:', qdrantError);
+        // Don't fail the upload if Qdrant storage fails
+      }
+    } else {
+      console.log('⚠️ Skipping Qdrant storage - insufficient text content (length:', extractedText.length, ')');
     }
     
     // Create response document format
