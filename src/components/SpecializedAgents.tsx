@@ -59,7 +59,15 @@ const SpecializedAgents: React.FC = () => {
       console.log('📥 Response status:', response.status, response.statusText);
 
       if (response.ok) {
-        const results = await response.json();
+        const responseData = await response.json();
+        const results = responseData.results || responseData; // Handle both old and new API response formats
+        
+        // Ensure results is an array
+        if (!Array.isArray(results)) {
+          console.error('❌ API response is not an array:', results);
+          return null;
+        }
+        
         console.log('📊 Search results:', results.length, 'documents found');
         
         // Find the most relevant Lohnsteuer document
