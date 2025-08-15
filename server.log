@@ -1,14 +1,46 @@
 
-> tax-law-ai-app@1.0.0 dev
-> vite --host 0.0.0.0 --port 54628
+> tax-law-ai-app@1.0.0 server
+> node api/index.js
 
-Port 54628 is in use, trying another one...
-Port 54629 is in use, trying another one...
-Port 54630 is in use, trying another one...
-Port 54631 is in use, trying another one...
-
-  VITE v4.5.14  ready in 167 ms
-
-  ➜  Local:   http://localhost:54632/
-  ➜  Network: http://10.2.17.142:54632/
-  ➜  press h to show help
+[dotenv@17.2.1] injecting env (11) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+❌ OpenAI API key not configured - AI analysis will use mock responses
+📚 Initialized tax knowledge base with core rules
+Tax & Law AI Expert server running on http://localhost:3001
+Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
+Connected to PostgreSQL database
+Database schema initialized successfully
+Database initialized successfully
+🔍 Semantic search request: "test"
+🔍 Searching Qdrant for: "test"
+Error generating embedding: Error: OpenAI client not initialized - API key not configured
+    at generateEmbedding (file:///workspace/project/0711-Steuerberater/api/index.js:118:13)
+    at searchDocumentsInQdrant (file:///workspace/project/0711-Steuerberater/api/index.js:233:30)
+    at file:///workspace/project/0711-Steuerberater/api/index.js:1424:35
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at /workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
+⚠️ Failed to generate embedding (OpenAI client not initialized - API key not configured), using mock embedding
+📊 Found 1 similar documents
+✅ Returning 1 clean documents (filtered out 0 corrupted)
+✅ Found 1 semantically similar documents
+🔍 Semantic search request: "test"
+🔍 Searching Qdrant for: "test"
+Error generating embedding: Error: OpenAI client not initialized - API key not configured
+    at generateEmbedding (file:///workspace/project/0711-Steuerberater/api/index.js:118:13)
+    at searchDocumentsInQdrant (file:///workspace/project/0711-Steuerberater/api/index.js:233:30)
+    at file:///workspace/project/0711-Steuerberater/api/index.js:1424:35
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at /workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
+⚠️ Failed to generate embedding (OpenAI client not initialized - API key not configured), using mock embedding
+📊 Found 1 similar documents
+✅ Returning 1 clean documents (filtered out 0 corrupted)
+✅ Found 1 semantically similar documents
