@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Search, TrendingUp, PiggyBank, Calculator, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, TrendingUp, PiggyBank, Calculator, AlertCircle, CheckCircle, Clock, FileText } from 'lucide-react';
+
 
 interface AgentRecommendation {
   id: string;
@@ -34,6 +35,136 @@ const SpecializedAgents: React.FC = () => {
   });
   const [analysis, setAnalysis] = useState<AgentAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lohnsteuerData, setLohnsteuerData] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<'manual' | 'document'>('manual');
+
+  // Query Qdrant for Lohnsteuer documents and extract data
+  const fetchLohnsteuerFromQdrant = async () => {
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: 'Lohnsteuerbescheinigung Bruttoarbeitslohn Gehaltsabrechnung',
+          limit: 5
+        }),
+      });
+
+      if (response.ok) {
+        const results = await response.json();
+        
+        // Find the most relevant Lohnsteuer document
+        const lohnsteuerDoc = results.find((doc: any) => 
+          doc.text?.toLowerCase().includes('lohnsteuer') ||
+          doc.text?.toLowerCase().includes('bruttoarbeitslohn') ||
+          doc.filename?.toLowerCase().includes('lohnsteuer') ||
+          doc.documentType === 'lohnsteuerbescheinigung'
+        );
+
+        if (lohnsteuerDoc) {
+          const extractedData = extractDataFromLohnsteuerText(lohnsteuerDoc.text);
+          if (extractedData.salary > 0) {
+            setLohnsteuerData({
+              ...extractedData,
+              documentName: lohnsteuerDoc.filename,
+              qdrantId: lohnsteuerDoc.id
+            });
+            
+            setUserProfile(prev => ({
+              ...prev,
+              income: extractedData.salary,
+              age: extractedData.age || prev.age,
+              maritalStatus: extractedData.maritalStatus || prev.maritalStatus,
+              hasChildren: extractedData.hasChildren || prev.hasChildren
+            }));
+            
+            setDataSource('document');
+            return extractedData;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching Lohnsteuer data from Qdrant:', error);
+    }
+    return null;
+  };
+
+  // Extract financial data from Lohnsteuer text
+  const extractDataFromLohnsteuerText = (text: string) => {
+    if (!text) return { salary: 0 };
+
+    const extractNumber = (patterns: RegExp[]): number => {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+          // Handle German number format (1.234,56 or 1234,56)
+          const numStr = match[1].replace(/\./g, '').replace(',', '.');
+          const num = parseFloat(numStr);
+          if (!isNaN(num) && num > 0) return Math.round(num);
+        }
+      }
+      return 0;
+    };
+
+    // German Lohnsteuer patterns
+    const salaryPatterns = [
+      /Bruttoarbeitslohn[:\s]*([0-9.,]+)/i,
+      /Bruttolohn[:\s]*([0-9.,]+)/i,
+      /Jahresbrutto[:\s]*([0-9.,]+)/i,
+      /Gesamtbrutto[:\s]*([0-9.,]+)/i,
+      /Bruttoverdienst[:\s]*([0-9.,]+)/i
+    ];
+
+    const taxPatterns = [
+      /Lohnsteuer[:\s]*([0-9.,]+)/i,
+      /Einkommensteuer[:\s]*([0-9.,]+)/i
+    ];
+
+    const socialInsurancePatterns = [
+      /Sozialversicherung[:\s]*([0-9.,]+)/i,
+      /Rentenversicherung[:\s]*([0-9.,]+)/i,
+      /Krankenversicherung[:\s]*([0-9.,]+)/i
+    ];
+
+    const salary = extractNumber(salaryPatterns);
+    const tax = extractNumber(taxPatterns);
+    const socialInsurance = extractNumber(socialInsurancePatterns);
+
+    // Extract age from birth date
+    const birthMatch = text.match(/geboren[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i) ||
+                      text.match(/Geburtsdatum[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
+    let age = null;
+    if (birthMatch) {
+      const birthYear = parseInt(birthMatch[3]);
+      age = new Date().getFullYear() - birthYear;
+    }
+
+    // Extract marital status
+    let maritalStatus = null;
+    if (text.match(/(verheiratet|married)/i)) maritalStatus = 'married';
+    else if (text.match(/(ledig|single)/i)) maritalStatus = 'single';
+    else if (text.match(/(geschieden|divorced)/i)) maritalStatus = 'divorced';
+
+    // Check for children
+    const hasChildren = text.match(/(kinderfreibetrag|kindergeld|kinder[:\s]*[1-9])/i) !== null;
+
+    return {
+      salary,
+      tax,
+      socialInsurance,
+      age,
+      maritalStatus,
+      hasChildren,
+      extractedAt: new Date().toISOString()
+    };
+  };
+
+  // Load Lohnsteuer data from Qdrant on component mount
+  useEffect(() => {
+    fetchLohnsteuerFromQdrant();
+  }, []);
 
   const agents = [
     {
@@ -136,7 +267,20 @@ const SpecializedAgents: React.FC = () => {
 
       {/* User Profile Configuration */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Benutzerprofil</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Benutzerprofil</h2>
+          {lohnsteuerData && dataSource === 'document' && (
+            <div className="flex items-center space-x-2 text-sm">
+              <FileText className="w-4 h-4 text-green-600" />
+              <span className="text-green-600 font-medium">
+                Daten aus Qdrant: {lohnsteuerData.documentName}
+              </span>
+              <span className="text-gray-500">
+                (€{lohnsteuerData.salary?.toLocaleString()})
+              </span>
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Alter</label>
@@ -212,6 +356,17 @@ const SpecializedAgents: React.FC = () => {
             />
           </div>
         </div>
+      </div>
+
+      {/* Refresh Qdrant Data Button */}
+      <div className="text-center mb-4">
+        <button
+          onClick={fetchLohnsteuerFromQdrant}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center mx-auto text-sm"
+        >
+          <Search className="w-4 h-4 mr-2" />
+          Lohnsteuer-Daten aus Qdrant aktualisieren
+        </button>
       </div>
 
       {/* Run Analysis Button */}

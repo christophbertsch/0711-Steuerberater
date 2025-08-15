@@ -226,8 +226,17 @@ async function searchDocumentsInQdrant(query, limit = 5) {
   try {
     console.log(`🔍 Searching Qdrant for: "${query}"`);
     
-    // Generate embedding for the query
-    const queryEmbedding = await generateEmbedding(query);
+    let queryEmbedding;
+    
+    // Try to generate embedding for the query
+    try {
+      queryEmbedding = await generateEmbedding(query);
+      console.log(`✅ Generated embedding for query: "${query}"`);
+    } catch (embeddingError) {
+      console.log(`⚠️ Failed to generate embedding (${embeddingError.message}), using mock embedding`);
+      // Create a simple mock embedding based on query characteristics
+      queryEmbedding = generateMockEmbedding(query);
+    }
     
     // Search in Qdrant
     const searchResult = await qdrant.search(QDRANT_COLLECTION, {
