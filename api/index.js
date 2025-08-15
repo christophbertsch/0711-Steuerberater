@@ -2264,6 +2264,71 @@ app.post('/api/test-multer', upload.single('document'), (req, res) => {
   });
 });
 
+// Cleanup endpoint - delete all documents and clear Qdrant collection
+app.delete('/api/cleanup', async (req, res) => {
+  try {
+    console.log('🧹 Starting cleanup process...');
+    
+    // 1. Clear Qdrant collection
+    try {
+      console.log('🗑️ Clearing Qdrant collection...');
+      await qdrant.delete(QDRANT_COLLECTION, {
+        filter: {} // Delete all points
+      });
+      console.log('✅ Qdrant collection cleared');
+    } catch (qdrantError) {
+      console.log('⚠️ Qdrant cleanup failed:', qdrantError.message);
+    }
+    
+    // 2. Clear database documents table
+    if (db) {
+      try {
+        console.log('🗑️ Clearing database documents...');
+        await db.query('DELETE FROM documents');
+        console.log('✅ Database documents cleared');
+      } catch (dbError) {
+        console.log('⚠️ Database cleanup failed:', dbError.message);
+      }
+    }
+    
+    // 3. Clear uploads directory
+    try {
+      console.log('🗑️ Clearing uploads directory...');
+      const fs = await import('fs');
+      const uploadsDir = path.join(__dirname, '../uploads');
+      
+      if (fs.existsSync(uploadsDir)) {
+        const files = fs.readdirSync(uploadsDir);
+        for (const file of files) {
+          const filePath = path.join(uploadsDir, file);
+          if (fs.statSync(filePath).isFile()) {
+            fs.unlinkSync(filePath);
+            console.log(`🗑️ Deleted: ${file}`);
+          }
+        }
+        console.log(`✅ Cleared ${files.length} files from uploads directory`);
+      }
+    } catch (fsError) {
+      console.log('⚠️ File system cleanup failed:', fsError.message);
+    }
+    
+    console.log('🎉 Cleanup completed successfully!');
+    res.json({ 
+      success: true, 
+      message: 'All documents, files, and Qdrant data cleared successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Cleanup failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Cleanup failed', 
+      details: error.message 
+    });
+  }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
