@@ -2811,6 +2811,265 @@ app.post('/api/tax/optimize', (req, res) => {
 // Initialize tax knowledge on startup
 initializeTaxKnowledge();
 
+// Editorial Package Storage Endpoints
+app.post('/api/editorial/packages', async (req, res) => {
+  try {
+    const { package_id, topic, version, status, jurisdiction, rulespecs, editorial_notes, user_steps, quality_summary } = req.body;
+    
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Start transaction
+    await db.query('BEGIN');
+
+    try {
+      // Insert editorial package
+      await db.query(`
+        INSERT INTO editorial_packages (package_id, topic, version, status, jurisdiction)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (package_id) DO UPDATE SET
+          topic = EXCLUDED.topic,
+          version = EXCLUDED.version,
+          status = EXCLUDED.status,
+          updated_at = CURRENT_TIMESTAMP
+      `, [package_id, topic, version || '1.0.0', status || 'active', jurisdiction || 'DE']);
+
+      // Insert rule specifications
+      if (rulespecs && rulespecs.length > 0) {
+        for (const rule of rulespecs) {
+          await db.query(`
+            INSERT INTO rule_specifications (package_id, rule_id, topic, rule_type, logic, parameters, form_mappings, tests, citations)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (package_id, rule_id) DO UPDATE SET
+              topic = EXCLUDED.topic,
+              rule_type = EXCLUDED.rule_type,
+              logic = EXCLUDED.logic,
+              parameters = EXCLUDED.parameters,
+              form_mappings = EXCLUDED.form_mappings,
+              tests = EXCLUDED.tests,
+              citations = EXCLUDED.citations
+          `, [
+            package_id, rule.rule_id, rule.topic, rule.rule_type, rule.logic,
+            JSON.stringify(rule.parameters || {}),
+            JSON.stringify(rule.form_mappings || []),
+            JSON.stringify(rule.tests || []),
+            JSON.stringify(rule.citations || [])
+          ]);
+        }
+      }
+
+      // Insert editorial notes
+      if (editorial_notes && editorial_notes.length > 0) {
+        // Clear existing notes for this package
+        await db.query('DELETE FROM editorial_notes WHERE package_id = $1', [package_id]);
+        
+        for (const note of editorial_notes) {
+          await db.query(`
+            INSERT INTO editorial_notes (package_id, rule_id, audience, content, citations)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [package_id, note.rule_id || null, note.audience, note.content, JSON.stringify(note.citations || [])]);
+        }
+      }
+
+      // Insert user steps
+      if (user_steps && user_steps.length > 0) {
+        // Clear existing steps for this package
+        await db.query('DELETE FROM user_steps WHERE package_id = $1', [package_id]);
+        
+        for (let i = 0; i < user_steps.length; i++) {
+          const step = user_steps[i];
+          await db.query(`
+            INSERT INTO user_steps (package_id, step_number, title, description, form_reference, kz_reference)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [package_id, i + 1, step.title, step.description, step.form_reference || null, step.kz_reference || null]);
+        }
+      }
+
+      // Insert quality metrics
+      if (quality_summary) {
+        await db.query(`
+          INSERT INTO quality_metrics (package_id, coverage_score, consistency_score, authority_score, total_rules, total_notes, total_steps)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (package_id) DO UPDATE SET
+            coverage_score = EXCLUDED.coverage_score,
+            consistency_score = EXCLUDED.consistency_score,
+            authority_score = EXCLUDED.authority_score,
+            total_rules = EXCLUDED.total_rules,
+            total_notes = EXCLUDED.total_notes,
+            total_steps = EXCLUDED.total_steps
+        `, [
+          package_id,
+          quality_summary.coverage || 0,
+          quality_summary.consistency || 0,
+          quality_summary.authority || 0,
+          rulespecs?.length || 0,
+          editorial_notes?.length || 0,
+          user_steps?.length || 0
+        ]);
+      }
+
+      await db.query('COMMIT');
+      
+      console.log(`✅ Stored editorial package: ${package_id} (${topic})`);
+      res.json({ 
+        success: true, 
+        package_id,
+        message: 'Editorial package stored successfully',
+        stats: {
+          rules: rulespecs?.length || 0,
+          notes: editorial_notes?.length || 0,
+          steps: user_steps?.length || 0
+        }
+      });
+
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Error storing editorial package:', error);
+    res.status(500).json({ error: 'Failed to store editorial package' });
+  }
+});
+
+// Get Editorial Package
+app.get('/api/editorial/packages/:packageId', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Get package info
+    const packageResult = await db.query('SELECT * FROM editorial_packages WHERE package_id = $1', [packageId]);
+    if (packageResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Editorial package not found' });
+    }
+
+    const packageInfo = packageResult.rows[0];
+
+    // Get rule specifications
+    const rulesResult = await db.query('SELECT * FROM rule_specifications WHERE package_id = $1 ORDER BY rule_id', [packageId]);
+    const rulespecs = rulesResult.rows.map(row => ({
+      rule_id: row.rule_id,
+      topic: row.topic,
+      rule_type: row.rule_type,
+      logic: row.logic,
+      parameters: row.parameters,
+      form_mappings: row.form_mappings,
+      tests: row.tests,
+      citations: row.citations
+    }));
+
+    // Get editorial notes
+    const notesResult = await db.query('SELECT * FROM editorial_notes WHERE package_id = $1 ORDER BY id', [packageId]);
+    const editorial_notes = notesResult.rows.map(row => ({
+      rule_id: row.rule_id,
+      audience: row.audience,
+      content: row.content,
+      citations: row.citations
+    }));
+
+    // Get user steps
+    const stepsResult = await db.query('SELECT * FROM user_steps WHERE package_id = $1 ORDER BY step_number', [packageId]);
+    const user_steps = stepsResult.rows.map(row => ({
+      title: row.title,
+      description: row.description,
+      form_reference: row.form_reference,
+      kz_reference: row.kz_reference
+    }));
+
+    // Get quality metrics
+    const qualityResult = await db.query('SELECT * FROM quality_metrics WHERE package_id = $1', [packageId]);
+    const quality_summary = qualityResult.rows.length > 0 ? {
+      coverage: qualityResult.rows[0].coverage_score,
+      consistency: qualityResult.rows[0].consistency_score,
+      authority: qualityResult.rows[0].authority_score
+    } : null;
+
+    res.json({
+      package_id: packageInfo.package_id,
+      topic: packageInfo.topic,
+      version: packageInfo.version,
+      status: packageInfo.status,
+      jurisdiction: packageInfo.jurisdiction,
+      created_at: packageInfo.created_at,
+      updated_at: packageInfo.updated_at,
+      rulespecs,
+      editorial_notes,
+      user_steps,
+      quality_summary
+    });
+
+  } catch (error) {
+    console.error('Error retrieving editorial package:', error);
+    res.status(500).json({ error: 'Failed to retrieve editorial package' });
+  }
+});
+
+// List Editorial Packages
+app.get('/api/editorial/packages', async (req, res) => {
+  try {
+    const { topic, status, limit = 50 } = req.query;
+    
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    let query = `
+      SELECT ep.*, qm.coverage_score, qm.consistency_score, qm.authority_score, qm.total_rules, qm.total_notes, qm.total_steps
+      FROM editorial_packages ep
+      LEFT JOIN quality_metrics qm ON ep.package_id = qm.package_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (topic) {
+      params.push(topic);
+      query += ` AND ep.topic = $${params.length}`;
+    }
+
+    if (status) {
+      params.push(status);
+      query += ` AND ep.status = $${params.length}`;
+    }
+
+    params.push(parseInt(limit));
+    query += ` ORDER BY ep.updated_at DESC LIMIT $${params.length}`;
+
+    const result = await db.query(query, params);
+    
+    const packages = result.rows.map(row => ({
+      package_id: row.package_id,
+      topic: row.topic,
+      version: row.version,
+      status: row.status,
+      jurisdiction: row.jurisdiction,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      quality_summary: {
+        coverage: row.coverage_score || 0,
+        consistency: row.consistency_score || 0,
+        authority: row.authority_score || 0
+      },
+      stats: {
+        rules: row.total_rules || 0,
+        notes: row.total_notes || 0,
+        steps: row.total_steps || 0
+      }
+    }));
+
+    res.json({ packages });
+
+  } catch (error) {
+    console.error('Error listing editorial packages:', error);
+    res.status(500).json({ error: 'Failed to list editorial packages' });
+  }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);

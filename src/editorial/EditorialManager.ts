@@ -50,11 +50,13 @@ export class EditorialManager {
   private tavilyFetcher: TavilyFetcher;
   private ruleSpecExtractor: RuleSpecExtractor;
   private editorialSynthesizer: EditorialSynthesizer;
+  private packages: Map<string, EditorialPackage>;
 
   constructor() {
     this.tavilyFetcher = new TavilyFetcher();
     this.ruleSpecExtractor = new RuleSpecExtractor();
     this.editorialSynthesizer = new EditorialSynthesizer();
+    this.packages = new Map();
   }
 
   /**
@@ -293,26 +295,114 @@ export class EditorialManager {
   }
 
   private async storeEditorialPackage(editorialPackage: EditorialPackage): Promise<void> {
-    // In production, store to:
-    // - PostgreSQL (truth): rulespecs, editorial_notes, etc.
-    // - Vector store (pgvector/Qdrant): chunk embeddings for RAG
-    // - Graph DB (Neo4j): citation relationships
-    // - S3/MinIO: complete package JSON, generated artifacts
-    
     console.log(`💾 Storing editorial package: ${editorialPackage.package_id}`);
     console.log(`📊 Package contains: ${editorialPackage.rulespecs.length} rules, ${editorialPackage.editorial_notes.length} notes, ${editorialPackage.user_steps.length} steps`);
     
-    // For now, just log the package structure
-    console.log(`📋 Package structure:`, {
-      package_id: editorialPackage.package_id,
-      topic: editorialPackage.topic,
-      version: editorialPackage.version,
-      rulespecs_count: editorialPackage.rulespecs.length,
-      editorial_notes_count: editorialPackage.editorial_notes.length,
-      user_steps_count: editorialPackage.user_steps.length,
-      kz_mappings_count: editorialPackage.kz_mappings.length,
-      quality_summary: editorialPackage.quality_summary
-    });
+    try {
+      // Store in database via API
+      const response = await fetch('/api/editorial/packages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          package_id: editorialPackage.package_id,
+          topic: editorialPackage.topic,
+          version: editorialPackage.version,
+          status: 'active',
+          jurisdiction: 'DE',
+          rulespecs: editorialPackage.rulespecs,
+          editorial_notes: editorialPackage.editorial_notes,
+          user_steps: editorialPackage.user_steps,
+          quality_summary: editorialPackage.quality_summary
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log(`✅ Successfully stored editorial package in database:`, result);
+      
+      // Also store in memory for immediate access
+      this.packages.set(editorialPackage.package_id, editorialPackage);
+      
+    } catch (error) {
+      console.warn(`⚠️ Failed to store editorial package in database: ${error}`);
+      console.log(`📋 Storing in memory only for package: ${editorialPackage.package_id}`);
+      
+      // Fallback to memory storage
+      this.packages.set(editorialPackage.package_id, editorialPackage);
+      
+      // Log package structure for debugging
+      console.log(`📋 Package structure:`, {
+        package_id: editorialPackage.package_id,
+        topic: editorialPackage.topic,
+        version: editorialPackage.version,
+        rulespecs_count: editorialPackage.rulespecs.length,
+        editorial_notes_count: editorialPackage.editorial_notes.length,
+        user_steps_count: editorialPackage.user_steps.length,
+        kz_mappings_count: editorialPackage.kz_mappings.length,
+        quality_summary: editorialPackage.quality_summary
+      });
+    }
+  }
+
+  /**
+   * Retrieve editorial package from database or memory
+   */
+  async getEditorialPackage(packageId: string): Promise<EditorialPackage | null> {
+    // First check memory cache
+    if (this.packages.has(packageId)) {
+      return this.packages.get(packageId)!;
+    }
+
+    // Try to fetch from database
+    try {
+      const response = await fetch(`/api/editorial/packages/${packageId}`);
+      if (response.ok) {
+        const packageData = await response.json();
+        console.log(`✅ Retrieved editorial package from database: ${packageId}`);
+        
+        // Cache in memory for future access
+        this.packages.set(packageId, packageData);
+        return packageData;
+      } else if (response.status === 404) {
+        console.log(`📋 Editorial package not found: ${packageId}`);
+        return null;
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to retrieve editorial package from database: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * List available editorial packages
+   */
+  async listEditorialPackages(topic?: string, status?: string): Promise<EditorialPackage[]> {
+    try {
+      const params = new URLSearchParams();
+      if (topic) params.append('topic', topic);
+      if (status) params.append('status', status);
+      
+      const response = await fetch(`/api/editorial/packages?${params.toString()}`);
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Retrieved ${result.packages.length} editorial packages from database`);
+        return result.packages;
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to list editorial packages from database: ${error}`);
+      // Fallback to memory packages
+      const memoryPackages = Array.from(this.packages.values());
+      return topic ? memoryPackages.filter((p: EditorialPackage) => p.topic === topic) : memoryPackages;
+    }
   }
 
   /**
