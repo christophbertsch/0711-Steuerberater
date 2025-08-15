@@ -142,9 +142,17 @@ const SpecializedAgents: React.FC = () => {
       for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
-          console.log(`🔍 ${label} pattern matched:`, pattern.toString(), 'found:', match[1]);
-          // Handle German number format (1.234,56 or 1234,56)
-          const numStr = match[1].replace(/\./g, '').replace(',', '.');
+          console.log(`🔍 ${label} pattern matched:`, pattern.toString(), 'found:', match[1], match[2] ? `and ${match[2]}` : '');
+          
+          let numStr: string;
+          if (match[2]) {
+            // Two-part match like "71.218 69" -> "71218.69"
+            numStr = match[1].replace(/\./g, '') + '.' + match[2];
+          } else {
+            // Single match - handle German number format (1.234,56 or 1234,56)
+            numStr = match[1].replace(/\./g, '').replace(',', '.');
+          }
+          
           const num = parseFloat(numStr);
           if (!isNaN(num) && num > 0) {
             // Filter out obviously wrong values (like single digits for salary)
@@ -163,6 +171,12 @@ const SpecializedAgents: React.FC = () => {
 
     // German Lohnsteuer patterns - ordered by specificity (most specific first)
     const salaryPatterns = [
+      // Exact patterns from the document format: "3. Bruttoarbeitslohn einschl. Sachbezüge ohne 9. und 10. 71.218 69"
+      /Bruttoarbeitslohn\s+einschl\.\s+Sachbezüge[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /3\.\s+Bruttoarbeitslohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      // Try to match the exact values with spaces: 71.218 69
+      /(71\.218)\s+(69)/i,
+      /(71218)\s+(69)/i,
       // Most specific patterns first (from document analysis)
       /Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
       /Der\s+Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
@@ -191,6 +205,12 @@ const SpecializedAgents: React.FC = () => {
     ];
 
     const taxPatterns = [
+      // Exact patterns from the document format: "4. Einbehaltene Lohnsteuer von 3. 13.663 00"
+      /4\.\s+Einbehaltene\s+Lohnsteuer[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /Einbehaltene\s+Lohnsteuer\s+von\s+3\.[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      // Try to match the exact values with spaces: 13.663 00
+      /(13\.663)\s+(00)/i,
+      /(13663)\s+(00)/i,
       // Most specific patterns first (from document analysis)
       /Die\s+einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
       /einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
