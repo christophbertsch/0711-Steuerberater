@@ -1891,19 +1891,19 @@ async function getGermanTaxRegulations(agentType, userProfile) {
   if (regulations.length === 0) {
     const fallbackRegulations = {
       optimization: [
-        'German Income Tax Act (EStG) §§ 9, 10, 10a - Deductible expenses and special expenses',
-        'German Tax Code (AO) § 42 - Tax optimization within legal boundaries',
-        'German Investment Tax Act (InvStG) - Investment income taxation rules'
+        'Einkommensteuergesetz (EStG) §§ 9, 10, 10a - Werbungskosten und Sonderausgaben',
+        'Abgabenordnung (AO) § 42 - Steueroptimierung im rechtlichen Rahmen',
+        'Investmentsteuergesetz (InvStG) - Besteuerung von Kapitalerträgen'
       ],
       investment: [
-        'German Investment Tax Act (InvStG) 2024 - Capital gains and dividend taxation',
-        'German Banking Act (KWG) - Investment account regulations',
-        'EU Savings Directive implementation in German tax law'
+        'Investmentsteuergesetz (InvStG) 2024 - Besteuerung von Kapitalgewinnen und Dividenden',
+        'Kreditwesengesetz (KWG) - Vorschriften für Anlagekonten',
+        'EU-Zinsrichtlinie Umsetzung im deutschen Steuerrecht'
       ],
       retirement: [
-        'German Pension Tax Act (AltEinkG) - Retirement income taxation',
-        'German Income Tax Act (EStG) § 10a - Riester pension contributions',
-        'German Pension Scheme Act - Rürup pension tax benefits'
+        'Alterseinkünftegesetz (AltEinkG) - Besteuerung von Renteneinkommen',
+        'Einkommensteuergesetz (EStG) § 10a - Riester-Renten Beiträge',
+        'Rentenversicherungsgesetz - Rürup-Renten Steuervorteile'
       ]
     };
     return fallbackRegulations[agentType] || [];
@@ -1923,20 +1923,20 @@ async function runTaxOptimizationAgent(userProfile, regulatoryBasis) {
     const savingsFromDeductions = Math.min(userProfile.income * 0.05, 2000);
     recommendations.push({
       id: 'tax-bracket-optimization',
-      title: 'Tax Bracket Optimization through Deductions',
-      description: 'Maximize deductible expenses to reduce taxable income and potentially move to a lower tax bracket.',
+      title: 'Steuerklassen-Optimierung durch Abzüge',
+      description: 'Maximieren Sie abzugsfähige Ausgaben, um das zu versteuernde Einkommen zu reduzieren und möglicherweise in eine niedrigere Steuerklasse zu wechseln.',
       impact: 'high',
       confidence: 85,
       potentialSavings: savingsFromDeductions,
-      timeframe: 'Current tax year',
+      timeframe: 'Aktuelles Steuerjahr',
       requirements: [
-        'Document all work-related expenses',
-        'Consider additional pension contributions',
-        'Optimize timing of income and expenses'
+        'Dokumentieren Sie alle berufsbezogenen Ausgaben',
+        'Erwägen Sie zusätzliche Rentenbeiträge',
+        'Optimieren Sie das Timing von Einkommen und Ausgaben'
       ],
       risks: [
-        'Requires proper documentation',
-        'Some deductions have annual limits'
+        'Erfordert ordnungsgemäße Dokumentation',
+        'Einige Abzüge haben jährliche Grenzen'
       ]
     });
     totalPotentialSavings += savingsFromDeductions;
@@ -1947,20 +1947,20 @@ async function runTaxOptimizationAgent(userProfile, regulatoryBasis) {
     const churchTaxSavings = userProfile.income * 0.008; // Approximate church tax rate
     recommendations.push({
       id: 'church-tax-optimization',
-      title: 'Church Tax Consideration',
-      description: 'Evaluate church tax implications and potential optimization strategies.',
+      title: 'Kirchensteuer-Überlegungen',
+      description: 'Bewerten Sie Kirchensteuer-Auswirkungen und potenzielle Optimierungsstrategien.',
       impact: 'medium',
       confidence: 70,
       potentialSavings: churchTaxSavings,
-      timeframe: 'Next tax year',
+      timeframe: 'Nächstes Steuerjahr',
       requirements: [
-        'Review church membership status',
-        'Consider timing of membership changes',
-        'Understand legal implications'
+        'Überprüfen Sie den Kirchenmitgliedschaftsstatus',
+        'Erwägen Sie das Timing von Mitgliedschaftsänderungen',
+        'Verstehen Sie die rechtlichen Auswirkungen'
       ],
       risks: [
-        'Personal and family considerations',
-        'Social implications'
+        'Persönliche und familiäre Überlegungen',
+        'Soziale Auswirkungen'
       ]
     });
     totalPotentialSavings += churchTaxSavings;
@@ -1971,20 +1971,20 @@ async function runTaxOptimizationAgent(userProfile, regulatoryBasis) {
     const businessExpenseSavings = Math.min(userProfile.income * 0.15, 5000);
     recommendations.push({
       id: 'business-expense-optimization',
-      title: 'Business Expense Maximization',
-      description: 'Optimize business expense deductions including home office, equipment, and professional development.',
+      title: 'Maximierung der Betriebsausgaben',
+      description: 'Optimieren Sie Betriebsausgaben-Abzüge einschließlich Homeoffice, Ausrüstung und berufliche Weiterbildung.',
       impact: 'high',
       confidence: 90,
       potentialSavings: businessExpenseSavings,
-      timeframe: 'Current tax year',
+      timeframe: 'Aktuelles Steuerjahr',
       requirements: [
-        'Maintain detailed expense records',
-        'Separate business and personal expenses',
-        'Consider home office deduction'
+        'Führen Sie detaillierte Ausgabenaufzeichnungen',
+        'Trennen Sie betriebliche und private Ausgaben',
+        'Erwägen Sie Homeoffice-Abzüge'
       ],
       risks: [
-        'Requires audit-proof documentation',
-        'Business purpose must be demonstrable'
+        'Erfordert prüfungssichere Dokumentation',
+        'Betrieblicher Zweck muss nachweisbar sein'
       ]
     });
     totalPotentialSavings += businessExpenseSavings;
@@ -2009,20 +2009,20 @@ async function runInvestmentTaxAgent(userProfile, regulatoryBasis) {
     const taxLossSavings = Math.min(userProfile.investmentPortfolio * 0.02, 1000);
     recommendations.push({
       id: 'tax-loss-harvesting',
-      title: 'Tax-Loss Harvesting Strategy',
-      description: 'Realize investment losses to offset capital gains and reduce tax liability under German Abgeltungsteuer.',
+      title: 'Verlustverrechnung-Strategie',
+      description: 'Realisieren Sie Anlageverluste, um Kapitalgewinne auszugleichen und die Steuerlast unter der deutschen Abgeltungsteuer zu reduzieren.',
       impact: 'medium',
       confidence: 75,
       potentialSavings: taxLossSavings,
-      timeframe: 'End of tax year',
+      timeframe: 'Ende des Steuerjahres',
       requirements: [
-        'Review investment portfolio for unrealized losses',
-        'Consider wash sale rules',
-        'Coordinate with overall investment strategy'
+        'Überprüfen Sie das Anlageportfolio auf nicht realisierte Verluste',
+        'Beachten Sie Wash-Sale-Regeln',
+        'Koordinieren Sie mit der Gesamtanlagestrategie'
       ],
       risks: [
-        'May conflict with long-term investment goals',
-        'Transaction costs must be considered'
+        'Kann mit langfristigen Anlagezielen in Konflikt stehen',
+        'Transaktionskosten müssen berücksichtigt werden'
       ]
     });
     totalPotentialSavings += taxLossSavings;
@@ -2094,21 +2094,21 @@ async function runRetirementPlanningAgent(userProfile, regulatoryBasis) {
     const riesterTaxSavings = riesterMaxContribution * calculateGermanTaxRate(userProfile.income);
     recommendations.push({
       id: 'riester-optimization',
-      title: 'Riester Pension Optimization',
-      description: 'Maximize Riester pension contributions to benefit from government subsidies and tax deductions.',
+      title: 'Riester-Renten Optimierung',
+      description: 'Maximieren Sie Riester-Renten Beiträge, um von staatlichen Zulagen und Steuerabzügen zu profitieren.',
       impact: 'high',
       confidence: 90,
       potentialSavings: riesterTaxSavings,
-      timeframe: 'Annual contribution',
+      timeframe: 'Jährlicher Beitrag',
       requirements: [
-        'Eligible employment status',
-        'Annual contribution up to 4% of income (max €2,100)',
-        'Apply for government subsidies (Zulagen)'
+        'Berechtigter Beschäftigungsstatus',
+        'Jährlicher Beitrag bis zu 4% des Einkommens (max. €2.100)',
+        'Beantragung staatlicher Zulagen'
       ],
       risks: [
-        'Funds locked until retirement',
-        'Limited investment options',
-        'Pension payments are fully taxable'
+        'Gelder bis zur Rente gesperrt',
+        'Begrenzte Anlageoptionen',
+        'Rentenzahlungen sind voll steuerpflichtig'
       ]
     });
     totalPotentialSavings += riesterTaxSavings;
@@ -2120,21 +2120,21 @@ async function runRetirementPlanningAgent(userProfile, regulatoryBasis) {
     const ruerupTaxSavings = ruerupMaxDeduction * calculateGermanTaxRate(userProfile.income) * 0.96; // 96% deductible in 2024
     recommendations.push({
       id: 'ruerup-optimization',
-      title: 'Rürup Pension Tax Optimization',
-      description: 'Utilize Rürup pension for significant tax deductions, especially beneficial for high earners and self-employed.',
+      title: 'Rürup-Renten Steueroptimierung',
+      description: 'Nutzen Sie Rürup-Renten für erhebliche Steuerabzüge, besonders vorteilhaft für Gutverdiener und Selbständige.',
       impact: 'high',
       confidence: 85,
       potentialSavings: ruerupTaxSavings,
-      timeframe: 'Annual contribution',
+      timeframe: 'Jährlicher Beitrag',
       requirements: [
-        'High income level for maximum benefit',
-        'Long-term commitment (no early withdrawal)',
-        'Consider investment options within Rürup framework'
+        'Hohes Einkommensniveau für maximalen Nutzen',
+        'Langfristige Bindung (keine vorzeitige Entnahme)',
+        'Anlageoptionen im Rürup-Rahmen berücksichtigen'
       ],
       risks: [
-        'No inheritance rights for spouse',
-        'Pension payments fully taxable',
-        'Inflation risk over long term'
+        'Keine Vererbungsrechte für Ehepartner',
+        'Rentenzahlungen voll steuerpflichtig',
+        'Inflationsrisiko langfristig'
       ]
     });
     totalPotentialSavings += ruerupTaxSavings;
@@ -2145,21 +2145,21 @@ async function runRetirementPlanningAgent(userProfile, regulatoryBasis) {
     const companyPensionSavings = Math.min(userProfile.income * 0.04, 3000);
     recommendations.push({
       id: 'company-pension-optimization',
-      title: 'Company Pension Scheme (bAV) Optimization',
-      description: 'Optimize company pension contributions through salary conversion (Entgeltumwandlung) for tax and social security savings.',
+      title: 'Betriebsrenten (bAV) Optimierung',
+      description: 'Optimieren Sie Betriebsrenten-Beiträge durch Entgeltumwandlung für Steuer- und Sozialversicherungsersparnisse.',
       impact: 'medium',
       confidence: 80,
       potentialSavings: companyPensionSavings,
-      timeframe: 'Monthly payroll deduction',
+      timeframe: 'Monatlicher Gehaltsabzug',
       requirements: [
-        'Employer offers company pension scheme',
-        'Salary conversion agreement',
-        'Consider employer matching contributions'
+        'Arbeitgeber bietet Betriebsrente an',
+        'Entgeltumwandlungsvereinbarung',
+        'Arbeitgeberzuschüsse berücksichtigen'
       ],
       risks: [
-        'Reduced statutory pension claims',
-        'Social security contributions on pension payments',
-        'Employer dependency'
+        'Reduzierte gesetzliche Rentenansprüche',
+        'Sozialversicherungsbeiträge auf Rentenzahlungen',
+        'Arbeitgeberabhängigkeit'
       ]
     });
     totalPotentialSavings += companyPensionSavings;

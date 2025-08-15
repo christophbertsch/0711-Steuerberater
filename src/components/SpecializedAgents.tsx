@@ -744,10 +744,10 @@ const SpecializedAgents: React.FC = () => {
                   </div>
                   <div className="text-right ml-4">
                     <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getImpactColor(rec.impact)}`}>
-                      {rec.impact.toUpperCase()} IMPACT
+                      {rec.impact === 'high' ? 'HOHE' : rec.impact === 'medium' ? 'MITTLERE' : 'NIEDRIGE'} AUSWIRKUNG
                     </div>
                     <div className={`text-sm font-medium mt-1 ${getConfidenceColor(rec.confidence)}`}>
-                      {rec.confidence}% confidence
+                      {rec.confidence}% Vertrauen
                     </div>
                   </div>
                 </div>

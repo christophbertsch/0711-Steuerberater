@@ -1,29 +1,10 @@
 
-> tax-law-ai-app@1.0.0 server
-> node api/index.js
+> tax-law-ai-app@1.0.0 dev
+> vite --host 0.0.0.0 --port 54628
 
-[dotenv@17.2.1] injecting env (7) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
-❌ OpenAI API key not configured - AI analysis will use mock responses
-Tax & Law AI Expert server running on http://localhost:3001
-Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
-Connected to PostgreSQL database
-Database schema initialized successfully
-Database initialized successfully
-Upload request received
-File received: test_rechnung.txt 535 bytes
-Starting text extraction
-Starting text extraction for test_rechnung.txt (text/plain)
-Successfully extracted 532 characters from text file
-Successfully extracted 575 characters from test_rechnung.txt
-Attempting to save document to database
-Document saved to database with ID: 3
-Sending response
-AI analyze endpoint called with: { documentId: '3' }
-Found document in database: test_rechnung.txt
-Using stored extracted text for test_rechnung.txt
-OpenAI API key not configured, returning mock analysis
-Analysis saved to database for document 3
-Reprocessing document 3 with options: { useOCR: false, enhancedExtraction: true }
-Using enhanced extraction for reprocessing
-Starting text extraction for test_rechnung.txt (text/plain)
-Successfully extracted 532 characters from text file
+
+  VITE v4.5.14  ready in 173 ms
+
+  ➜  Local:   http://localhost:54628/
+  ➜  Network: http://10.2.17.142:54628/
+  ➜  press h to show help
