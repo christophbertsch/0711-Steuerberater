@@ -1,4 +1,4 @@
-[dotenv@17.2.1] injecting env (8) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+[dotenv@17.2.1] injecting env (8) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
 ✅ OpenAI API initialized successfully
 Tax & Law AI Expert server running on http://localhost:13000
 Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
@@ -28,20 +28,18 @@ Failed to initialize database: error: password authentication failed for user "p
 🔍 Semantic search request: "Lohnsteuerbescheinigung"
 🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
 ✅ Generated embedding for query: "Lohnsteuerbescheinigung"
-📊 Found 3 similar documents
-✅ Found 3 semantically similar documents
+📊 Found 5 similar documents
+🚫 Filtering out document 1755237885957 (Marc Weber_LSTB_2024_pt.pdf) - only 33% readable
+🚫 Filtering out document 1755221651621 (Cousera.pdf) - only 34% readable
+🚫 Filtering out document 1755239429710 (T-Rechnung Telekom 2024-09.pdf) - only 33% readable
+✅ Returning 2 clean documents (filtered out 3 corrupted)
+✅ Found 2 semantically similar documents
 🔍 Semantic search request: "Lohnsteuerbescheinigung"
 🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
 ✅ Generated embedding for query: "Lohnsteuerbescheinigung"
-📊 Found 3 similar documents
-✅ Found 3 semantically similar documents
-🔍 Semantic search request: "test"
-🔍 Searching Qdrant for: "test"
-✅ Generated embedding for query: "test"
-📊 Found 1 similar documents
-✅ Found 1 semantically similar documents
-🔍 Semantic search request: "test"
-🔍 Searching Qdrant for: "test"
-✅ Generated embedding for query: "test"
-📊 Found 1 similar documents
-✅ Found 1 semantically similar documents
+📊 Found 5 similar documents
+🚫 Filtering out document 1755237885957 (Marc Weber_LSTB_2024_pt.pdf) - only 33% readable
+🚫 Filtering out document 1755221651621 (Cousera.pdf) - only 34% readable
+🚫 Filtering out document 1755239429710 (T-Rechnung Telekom 2024-09.pdf) - only 33% readable
+✅ Returning 2 clean documents (filtered out 3 corrupted)
+✅ Found 2 semantically similar documents

@@ -248,7 +248,26 @@ async function searchDocumentsInQdrant(query, limit = 5) {
     
     console.log(`📊 Found ${searchResult.length} similar documents`);
     
-    return searchResult.map(result => ({
+    // Filter out documents with corrupted text encoding
+    const filteredResults = searchResult.filter(result => {
+      const text = result.payload.text || '';
+      
+      // Check if text contains mostly readable characters (not garbled)
+      const readableChars = text.match(/[a-zA-ZäöüßÄÖÜ0-9\s.,!?()-]/g);
+      const readableRatio = readableChars ? readableChars.length / text.length : 0;
+      
+      // Filter out documents with less than 70% readable characters
+      if (readableRatio < 0.7) {
+        console.log(`🚫 Filtering out document ${result.id} (${result.payload.filename}) - only ${Math.round(readableRatio * 100)}% readable`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    console.log(`✅ Returning ${filteredResults.length} clean documents (filtered out ${searchResult.length - filteredResults.length} corrupted)`);
+    
+    return filteredResults.map(result => ({
       id: result.id,
       score: result.score,
       ...result.payload
