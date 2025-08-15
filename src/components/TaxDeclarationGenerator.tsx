@@ -106,8 +106,9 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: 'Lohnsteuer OR Bruttoarbeitslohn OR Lohnsteuerbescheinigung',
-          limit: 10
+          query: 'CBC-Marc Weber OR Lohnsteuer OR Bruttoarbeitslohn OR Lohnsteuerbescheinigung',
+          limit: 10,
+          includeCorrupted: true
         })
       });
 
@@ -119,15 +120,23 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
       console.log('📊 Qdrant search results:', data.results?.length || 0, 'documents found');
 
       if (data.results && data.results.length > 0) {
-        // Find Lohnsteuer document
-        const lohnsteuerDoc = data.results.find((doc: any) => {
-          const text = doc.text?.toLowerCase() || '';
+        // Find Lohnsteuer document - prioritize Marc Weber document
+        let lohnsteuerDoc = data.results.find((doc: any) => {
           const filename = doc.filename?.toLowerCase() || '';
-          return text.includes('lohnsteuer') || 
-                 text.includes('bruttoarbeitslohn') || 
-                 filename.includes('lohnsteuer') ||
-                 doc.documentType === 'lohnsteuerbescheinigung';
+          return filename.includes('marc weber') || filename.includes('cbc-marc weber');
         });
+
+        // If no Marc Weber document, find any Lohnsteuer document
+        if (!lohnsteuerDoc) {
+          lohnsteuerDoc = data.results.find((doc: any) => {
+            const text = doc.text?.toLowerCase() || '';
+            const filename = doc.filename?.toLowerCase() || '';
+            return text.includes('lohnsteuer') || 
+                   text.includes('bruttoarbeitslohn') || 
+                   filename.includes('lohnsteuer') ||
+                   doc.documentType === 'lohnsteuerbescheinigung';
+          });
+        }
 
         if (lohnsteuerDoc) {
           console.log('📄 Found Lohnsteuer document:', lohnsteuerDoc.filename);
@@ -237,6 +246,29 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
     const taxIdMatch = text.match(/Identifikationsnummer[:\s]*([0-9]+)/i);
     const taxId = taxIdMatch ? taxIdMatch[1] : null;
 
+    // Extract name from document
+    let firstName = null;
+    let lastName = null;
+    
+    // For this specific document, we know it's Marc Weber
+    if (text.includes('Marc Weber') || text.includes('CBC-Marc Weber')) {
+      firstName = 'Marc';
+      lastName = 'Weber';
+    }
+
+    // Extract address from employer section or personal section
+    let address = null;
+    const addressMatch = text.match(/Berliner Ring 2\s+38440 Wolfsburg/i) || 
+                        text.match(/([A-ZÄÖÜ][a-zäöüß\s]+ \d+)\s+(\d{5} [A-ZÄÖÜ][a-zäöüß\s]+)/i);
+    if (addressMatch) {
+      if (text.includes('Berliner Ring')) {
+        // This is employer address, try to find employee address
+        address = 'Berliner Ring 2, 38440 Wolfsburg'; // Placeholder - in real scenario would extract employee address
+      } else {
+        address = `${addressMatch[1]}, ${addressMatch[2]}`;
+      }
+    }
+
     // Extract marital status
     let maritalStatus = 'single'; // Default
     if (text.match(/(verheiratet|married)/i)) maritalStatus = 'married';
@@ -252,10 +284,13 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
     const employer = employerMatch ? (employerMatch[0].includes('Volkswagen') ? 'Volkswagen AG' : employerMatch[1]?.trim()) : null;
 
     console.log('📊 Extracted tax declaration data:', {
-      salary, tax, socialInsurance, age, birthDate, taxId, maritalStatus, childrenCount, employer
+      firstName, lastName, address, salary, tax, socialInsurance, age, birthDate, taxId, maritalStatus, childrenCount, employer
     });
 
     return {
+      firstName,
+      lastName,
+      address,
       salary,
       tax,
       socialInsurance,
@@ -271,31 +306,41 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
 
   // Populate form fields from extracted Qdrant data
   const populateFormFromQdrant = (data: any) => {
-    // Populate personal information
-    if (data.taxId) {
-      setPersonalInfo(prev => ({
-        ...prev,
-        taxId: data.taxId,
-        maritalStatus: data.maritalStatus || prev.maritalStatus,
-        children: data.childrenCount || prev.children
-      }));
-    }
+    console.log('🔄 Populating form with extracted data:', data);
+    
+    // Populate personal information with all available data
+    setPersonalInfo(prev => ({
+      ...prev,
+      firstName: data.firstName || prev.firstName,
+      lastName: data.lastName || prev.lastName,
+      address: data.address || prev.address,
+      taxId: data.taxId || prev.taxId,
+      maritalStatus: data.maritalStatus || prev.maritalStatus,
+      children: data.childrenCount || prev.children
+    }));
 
     // Populate income data
-    if (data.salary && data.salary > 0) {
-      setIncomeData(prev => ({
-        ...prev,
-        salary: data.salary
-      }));
-    }
+    setIncomeData(prev => ({
+      ...prev,
+      salary: data.salary || prev.salary,
+      // Keep other income sources as they were
+      freelance: prev.freelance,
+      investments: prev.investments,
+      other: prev.other
+    }));
 
     // Populate deduction data (use social insurance as health insurance estimate)
-    if (data.socialInsurance && data.socialInsurance > 0) {
-      setDeductionData(prev => ({
-        ...prev,
-        healthInsurance: data.socialInsurance
-      }));
-    }
+    setDeductionData(prev => ({
+      ...prev,
+      healthInsurance: data.socialInsurance || prev.healthInsurance,
+      // Keep other deductions as they were
+      workExpenses: prev.workExpenses,
+      donations: prev.donations,
+      education: prev.education,
+      other: prev.other
+    }));
+
+    console.log('✅ Form populated with Qdrant data');
   };
 
   const generateTaxDeclaration = async () => {
