@@ -66,7 +66,7 @@ export default function EditorialSearch() {
       if (response.ok) {
         const data = await response.json();
         const results = data.results || [];
-        const topics = [...new Set(results.map((doc: any) => doc.metadata?.topic).filter(Boolean))];
+        const topics = [...new Set(results.map((doc: any) => doc.metadata?.topic).filter(Boolean))] as string[];
         setAvailableTopics(topics.sort());
       }
     } catch (error) {

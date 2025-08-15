@@ -24,71 +24,90 @@ async function demoQdrantIntegration() {
     rulespecs: [
       {
         rule_id: 'ESt_Grundfreibetrag_2024',
-        title: 'Grundfreibetrag 2024',
-        description: 'Der Grundfreibetrag beträgt für das Jahr 2024 11.604 Euro für Ledige und 23.208 Euro für Verheiratete.',
-        conditions: ['Steuerpflichtige Person', 'Veranlagungsjahr 2024'],
-        formula: 'Grundfreibetrag = 11.604 EUR (Ledige) / 23.208 EUR (Verheiratete)',
-        references: ['§ 32a EStG', 'BMF-Schreiben vom 15.12.2023'],
-        priority: 'high' as const,
-        effective_date: '2024-01-01',
-        expiry_date: '2024-12-31'
+        topic: 'Einkommensteuer Grundlagen',
+        effective: {
+          from: '2024-01-01',
+          to: '2024-12-31'
+        },
+        form_map: [
+          { form: 'ESt1A', kz: 'KZ_101', type: 'amount' as const }
+        ],
+        definition: 'Der Grundfreibetrag beträgt für das Jahr 2024 11.604 Euro für Ledige und 23.208 Euro für Verheiratete.',
+        parameters: {
+          amount_single: 11604,
+          amount_married: 23208,
+          currency: 'EUR'
+        },
+        logic: 'Grundfreibetrag = 11.604 EUR (Ledige) / 23.208 EUR (Verheiratete)',
+        computation_notes: ['BigDecimal only', 'HALF_UP rounding final'],
+        citations: [
+          { doc_id: 'EStG_2024', paragraph: '§ 32a EStG', page: 1 }
+        ],
+        tests: [
+          { input: { filing_status: 'single' }, expect: { grundfreibetrag: 11604 } },
+          { input: { filing_status: 'married' }, expect: { grundfreibetrag: 23208 } }
+        ]
       },
       {
         rule_id: 'ESt_Werbungskosten_Pauschbetrag_2024',
-        title: 'Werbungskosten-Pauschbetrag 2024',
-        description: 'Der Arbeitnehmer-Pauschbetrag für Werbungskosten beträgt 1.230 Euro.',
-        conditions: ['Nichtselbständige Arbeit', 'Keine höheren Werbungskosten nachgewiesen'],
-        formula: 'Pauschbetrag = 1.230 EUR',
-        references: ['§ 9a EStG'],
-        priority: 'high' as const,
-        effective_date: '2024-01-01',
-        expiry_date: null
+        topic: 'Werbungskosten',
+        effective: {
+          from: '2024-01-01',
+          to: null
+        },
+        form_map: [
+          { form: 'Anlage N', kz: 'KZ_N_40', type: 'amount' as const }
+        ],
+        definition: 'Der Arbeitnehmer-Pauschbetrag für Werbungskosten beträgt 1.230 Euro.',
+        parameters: {
+          pauschbetrag: 1230,
+          currency: 'EUR'
+        },
+        logic: 'value = max(actual_expenses, 1230)',
+        computation_notes: ['BigDecimal only', 'HALF_UP rounding final'],
+        citations: [
+          { doc_id: 'EStG_2024', paragraph: '§ 9a EStG', page: 2 }
+        ],
+        tests: [
+          { input: { actual_expenses: 1000 }, expect: { werbungskosten: 1230 } },
+          { input: { actual_expenses: 1500 }, expect: { werbungskosten: 1500 } }
+        ]
       }
     ],
     editorial_notes: [
       {
-        note_id: 'note_grundfreibetrag_2024',
-        title: 'Grundfreibetrag Erhöhung 2024',
-        content: 'Der Grundfreibetrag wurde für 2024 um 696 Euro auf 11.604 Euro erhöht. Dies entspricht einer Steigerung von 6,4% gegenüber dem Vorjahr.',
-        note_type: 'explanation' as const,
-        target_audience: 'taxpayer' as const,
-        tags: ['Grundfreibetrag', 'Erhöhung', '2024', 'Inflation'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        id: 'note_grundfreibetrag_2024',
+        audience: 'user' as const,
+        text: 'Der Grundfreibetrag wurde für 2024 um 696 Euro auf 11.604 Euro erhöht. Dies entspricht einer Steigerung von 6,4% gegenüber dem Vorjahr.',
+        citations: [
+          { doc_id: 'BMF_2023', paragraph: 'BMF-Schreiben vom 15.12.2023', page: 1 }
+        ]
       },
       {
-        note_id: 'note_werbungskosten_2024',
-        title: 'Werbungskosten-Pauschbetrag Anwendung',
-        content: 'Der Pauschbetrag wird automatisch berücksichtigt, wenn keine höheren Werbungskosten nachgewiesen werden. Einzelnachweise sind nur bei Überschreitung erforderlich.',
-        note_type: 'guidance' as const,
-        target_audience: 'taxpayer' as const,
-        tags: ['Werbungskosten', 'Pauschbetrag', 'Nachweis'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        id: 'note_werbungskosten_2024',
+        audience: 'user' as const,
+        text: 'Der Pauschbetrag wird automatisch berücksichtigt, wenn keine höheren Werbungskosten nachgewiesen werden. Einzelnachweise sind nur bei Überschreitung erforderlich.',
+        citations: [
+          { doc_id: 'EStG_2024', paragraph: '§ 9a EStG', page: 2 }
+        ]
       }
     ],
     user_steps: [
       {
-        step_id: 'step_grundfreibetrag_check',
-        title: 'Grundfreibetrag prüfen',
-        description: 'Überprüfung des Grundfreibetrags in der Steuererklärung',
-        instructions: 'Der Grundfreibetrag wird automatisch berücksichtigt. Keine Eingabe erforderlich.',
-        step_type: 'verification' as const,
-        form_target: 'ESt1A',
-        validation_rules: ['Grundfreibetrag > 0', 'Grundfreibetrag <= 11.604 EUR (Ledige)'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        step: 'Grundfreibetrag prüfen',
+        why: 'Der Grundfreibetrag wird automatisch berücksichtigt und muss überprüft werden.',
+        how: 'Der Grundfreibetrag wird automatisch berücksichtigt. Keine Eingabe erforderlich.',
+        citations: [
+          { doc_id: 'EStG_2024', paragraph: '§ 32a EStG', page: 1 }
+        ]
       },
       {
-        step_id: 'step_werbungskosten_entry',
-        title: 'Werbungskosten eintragen',
-        description: 'Eingabe der Werbungskosten in Anlage N',
-        instructions: 'Tragen Sie Ihre Werbungskosten in Anlage N ein. Bei Beträgen unter 1.230 Euro wird automatisch der Pauschbetrag angesetzt.',
-        step_type: 'input' as const,
-        form_target: 'Anlage N',
-        validation_rules: ['Werbungskosten >= 0', 'Belege bei Überschreitung Pauschbetrag'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        step: 'Werbungskosten eintragen',
+        why: 'Werbungskosten müssen in Anlage N eingetragen werden, um steuerlich berücksichtigt zu werden.',
+        how: 'Tragen Sie Ihre Werbungskosten in Anlage N ein. Bei Beträgen unter 1.230 Euro wird automatisch der Pauschbetrag angesetzt.',
+        citations: [
+          { doc_id: 'EStG_2024', paragraph: '§ 9a EStG', page: 2 }
+        ]
       }
     ],
     kz_mappings: [
@@ -128,20 +147,20 @@ async function demoQdrantIntegration() {
   
   // Prepare rule specifications
   for (const rule of samplePackage.rulespecs) {
-    const conditions = Array.isArray(rule.conditions) ? rule.conditions.join(', ') : (rule.conditions || 'N/A');
-    const references = Array.isArray(rule.references) ? rule.references.join(', ') : (rule.references || 'N/A');
+    const citations = rule.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
+    const formMappings = rule.form_map.map(f => `${f.form}:${f.kz}`).join(', ');
     
     const doc = {
       filename: `rule_${rule.rule_id}.txt`,
-      text: `${rule.title || 'Untitled Rule'}\n\n${rule.description || 'No description'}\n\nConditions: ${conditions}\n\nFormula: ${rule.formula || 'N/A'}\n\nReferences: ${references}`,
+      text: `${rule.rule_id}\n\n${rule.definition}\n\nTopic: ${rule.topic}\n\nLogic: ${rule.logic}\n\nForm Mappings: ${formMappings}\n\nCitations: ${citations}\n\nEffective: ${rule.effective.from} - ${rule.effective.to || 'ongoing'}`,
       documentType: 'editorial_rule',
       metadata: {
         package_id: samplePackage.package_id,
         topic: samplePackage.topic,
         rule_id: rule.rule_id,
         content_type: 'rule_specification',
-        priority: rule.priority || 'medium',
-        effective_date: rule.effective_date || new Date().toISOString().split('T')[0],
+        priority: 'medium',
+        effective_date: rule.effective.from,
         version: samplePackage.version
       }
     };
@@ -156,19 +175,19 @@ async function demoQdrantIntegration() {
   
   // Prepare editorial notes
   for (const note of samplePackage.editorial_notes) {
-    const tags = Array.isArray(note.tags) ? note.tags.join(', ') : (note.tags || 'N/A');
+    const citations = note.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
     
     const doc = {
-      filename: `note_${note.note_id}.txt`,
-      text: `${note.title || 'Untitled Note'}\n\n${note.content || 'No content'}\n\nTags: ${tags}`,
+      filename: `note_${note.id}.txt`,
+      text: `Editorial Note\n\n${note.text}\n\nAudience: ${note.audience}\n\nCitations: ${citations}`,
       documentType: 'editorial_note',
       metadata: {
         package_id: samplePackage.package_id,
         topic: samplePackage.topic,
-        note_id: note.note_id,
+        note_id: note.id,
         content_type: 'editorial_note',
-        note_type: note.note_type || 'general',
-        target_audience: note.target_audience || 'general',
+        note_type: 'general',
+        target_audience: note.audience,
         version: samplePackage.version
       }
     };
@@ -183,19 +202,19 @@ async function demoQdrantIntegration() {
   
   // Prepare user steps
   for (const step of samplePackage.user_steps) {
-    const validationRules = Array.isArray(step.validation_rules) ? step.validation_rules.join(', ') : (step.validation_rules || 'N/A');
+    const citations = step.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
     
     const doc = {
-      filename: `step_${step.step_id}.txt`,
-      text: `${step.title || 'Untitled Step'}\n\n${step.description || 'No description'}\n\nInstructions: ${step.instructions || 'No instructions'}\n\nValidation: ${validationRules}`,
+      filename: `step_${step.step}.txt`,
+      text: `User Step: ${step.step}\n\nWhy: ${step.why}\n\nHow: ${step.how}\n\nCitations: ${citations}`,
       documentType: 'editorial_step',
       metadata: {
         package_id: samplePackage.package_id,
         topic: samplePackage.topic,
-        step_id: step.step_id,
+        step_id: step.step,
         content_type: 'user_step',
-        step_type: step.step_type || 'general',
-        form_target: step.form_target || 'general',
+        step_type: 'general',
+        form_target: 'general',
         version: samplePackage.version
       }
     };

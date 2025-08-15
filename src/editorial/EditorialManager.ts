@@ -371,20 +371,20 @@ export class EditorialManager {
       
       // Store rule specifications
       for (const rule of editorialPackage.rulespecs) {
-        const conditions = Array.isArray(rule.conditions) ? rule.conditions.join(', ') : (rule.conditions || 'N/A');
-        const references = Array.isArray(rule.references) ? rule.references.join(', ') : (rule.references || 'N/A');
+        const citations = rule.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
+        const formMappings = rule.form_map.map(f => `${f.form}:${f.kz}`).join(', ');
         
         documents.push({
           filename: `rule_${rule.rule_id}.txt`,
-          text: `${rule.title || 'Untitled Rule'}\n\n${rule.description || 'No description'}\n\nConditions: ${conditions}\n\nFormula: ${rule.formula || 'N/A'}\n\nReferences: ${references}`,
+          text: `${rule.rule_id}\n\n${rule.definition}\n\nTopic: ${rule.topic}\n\nLogic: ${rule.logic}\n\nForm Mappings: ${formMappings}\n\nCitations: ${citations}\n\nEffective: ${rule.effective.from} - ${rule.effective.to || 'ongoing'}`,
           documentType: 'editorial_rule',
           metadata: {
             package_id: editorialPackage.package_id,
             topic: editorialPackage.topic,
             rule_id: rule.rule_id,
             content_type: 'rule_specification',
-            priority: rule.priority || 'medium',
-            effective_date: rule.effective_date || new Date().toISOString().split('T')[0],
+            priority: 'medium', // Default priority since not in RuleSpec
+            effective_date: rule.effective.from,
             version: editorialPackage.version
           }
         });
@@ -392,19 +392,19 @@ export class EditorialManager {
       
       // Store editorial notes
       for (const note of editorialPackage.editorial_notes) {
-        const tags = Array.isArray(note.tags) ? note.tags.join(', ') : (note.tags || 'N/A');
+        const citations = note.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
         
         documents.push({
-          filename: `note_${note.note_id}.txt`,
-          text: `${note.title || 'Untitled Note'}\n\n${note.content || 'No content'}\n\nTags: ${tags}`,
+          filename: `note_${note.id}.txt`,
+          text: `Editorial Note\n\n${note.text}\n\nAudience: ${note.audience}\n\nCitations: ${citations}`,
           documentType: 'editorial_note',
           metadata: {
             package_id: editorialPackage.package_id,
             topic: editorialPackage.topic,
-            note_id: note.note_id,
+            note_id: note.id,
             content_type: 'editorial_note',
-            note_type: note.note_type || 'general',
-            target_audience: note.target_audience || 'general',
+            note_type: 'general',
+            target_audience: note.audience,
             version: editorialPackage.version
           }
         });
@@ -412,19 +412,19 @@ export class EditorialManager {
       
       // Store user steps
       for (const step of editorialPackage.user_steps) {
-        const validationRules = Array.isArray(step.validation_rules) ? step.validation_rules.join(', ') : (step.validation_rules || 'N/A');
+        const citations = step.citations.map(c => `${c.paragraph} (${c.doc_id})`).join(', ');
         
         documents.push({
-          filename: `step_${step.step_id}.txt`,
-          text: `${step.title || 'Untitled Step'}\n\n${step.description || 'No description'}\n\nInstructions: ${step.instructions || 'No instructions'}\n\nValidation: ${validationRules}`,
+          filename: `step_${step.step}.txt`,
+          text: `User Step: ${step.step}\n\nWhy: ${step.why}\n\nHow: ${step.how}\n\nCitations: ${citations}`,
           documentType: 'editorial_step',
           metadata: {
             package_id: editorialPackage.package_id,
             topic: editorialPackage.topic,
-            step_id: step.step_id,
+            step_id: step.step,
             content_type: 'user_step',
-            step_type: step.step_type || 'general',
-            form_target: step.form_target || 'general',
+            step_type: 'general',
+            form_target: 'general',
             version: editorialPackage.version
           }
         });
