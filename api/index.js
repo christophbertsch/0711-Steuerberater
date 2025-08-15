@@ -359,13 +359,52 @@ async function extractPDFTextReliable(buffer, fileName) {
       console.log('🚫 Python extraction disabled in production environment');
     }
     
-    // Method 2: Try external PDF service as fallback (if configured)
+    // Method 2: Try PDF2Q service (optimized for German text)
+    try {
+      console.log('🌐 Attempting PDF2Q service for German text extraction...');
+      
+      const form = new FormData();
+      form.append('file', buffer, {
+        filename: fileName,
+        contentType: 'application/pdf'
+      });
+      
+      // Try PDF2Q service first (known to work well with German text)
+      const pdf2qResponse = await fetch('http://localhost:5000/extract', {
+        method: 'POST',
+        body: form,
+        timeout: 15000 // 15 second timeout
+      });
+      
+      if (pdf2qResponse.ok) {
+        const result = await pdf2qResponse.json();
+        
+        if (result.success && result.text && result.text.trim().length > 10) {
+          // Check if the text is readable (not garbled)
+          const readableChars = result.text.match(/[a-zA-ZäöüßÄÖÜ0-9\s.,!?()-]/g);
+          const readableRatio = readableChars ? readableChars.length / result.text.length : 0;
+          
+          if (readableRatio > 0.7) {
+            console.log(`✅ PDF2Q service extracted ${result.text_length || result.text.length} characters from ${result.pages || 'unknown'} pages (${Math.round(readableRatio * 100)}% readable)`);
+            console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
+            return result.text.trim();
+          } else {
+            console.log(`⚠️ PDF2Q service text appears garbled (${Math.round(readableRatio * 100)}% readable)`);
+          }
+        }
+      } else {
+        console.log(`⚠️ PDF2Q service failed: ${pdf2qResponse.status}`);
+      }
+      
+    } catch (pdf2qError) {
+      console.log('⚠️ PDF2Q service unavailable:', pdf2qError.message);
+    }
+    
+    // Method 2b: Try external PDF service as fallback (if configured)
     const pdfServiceUrl = process.env.PDF_SERVICE_URL;
-    if (pdfServiceUrl) {
+    if (pdfServiceUrl && pdfServiceUrl !== 'http://localhost:5000') {
       try {
         console.log(`🌐 Attempting external PDF service at: ${pdfServiceUrl}`);
-        
-        // FormData and fetch already imported at top
         
         const form = new FormData();
         form.append('file', buffer, {
@@ -383,9 +422,17 @@ async function extractPDFTextReliable(buffer, fileName) {
           const result = await response.json();
           
           if (result.success && result.text && result.text.trim().length > 10) {
-            console.log(`✅ External service extracted ${result.text_length} characters from ${result.pages} pages`);
-            console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
-            return result.text.trim();
+            // Check readability
+            const readableChars = result.text.match(/[a-zA-ZäöüßÄÖÜ0-9\s.,!?()-]/g);
+            const readableRatio = readableChars ? readableChars.length / result.text.length : 0;
+            
+            if (readableRatio > 0.7) {
+              console.log(`✅ External service extracted ${result.text_length} characters from ${result.pages} pages (${Math.round(readableRatio * 100)}% readable)`);
+              console.log(`📝 First 100 chars: ${result.text.substring(0, 100)}...`);
+              return result.text.trim();
+            } else {
+              console.log(`⚠️ External service text appears garbled (${Math.round(readableRatio * 100)}% readable)`);
+            }
           }
         }
         
@@ -401,18 +448,36 @@ async function extractPDFTextReliable(buffer, fileName) {
       console.log('📚 Attempting pdf-parse extraction...');
       const pdfParse = await import('pdf-parse');
       
-      // Configure pdf-parse options for better extraction
+      // Configure pdf-parse options for better extraction with proper encoding
       const options = {
         normalizeWhitespace: false,
-        disableCombineTextItems: false
+        disableCombineTextItems: false,
+        // Add encoding options for better German text handling
+        max: 0, // Parse all pages
+        version: 'v1.10.100'
       };
       
       const pdfData = await pdfParse.default(buffer, options);
       
       if (pdfData.text && pdfData.text.trim().length > 10) {
-        console.log(`✅ pdf-parse extracted ${pdfData.text.length} characters`);
-        console.log(`📝 First 100 chars: ${pdfData.text.substring(0, 100)}...`);
-        return pdfData.text.trim();
+        // Clean and normalize the extracted text for German characters
+        let cleanText = pdfData.text
+          .replace(/\0/g, '') // Remove null characters
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+        
+        // Check if text contains mostly readable characters (not garbled)
+        const readableChars = cleanText.match(/[a-zA-ZäöüßÄÖÜ0-9\s.,!?()-]/g);
+        const readableRatio = readableChars ? readableChars.length / cleanText.length : 0;
+        
+        if (readableRatio > 0.7) { // At least 70% readable characters
+          console.log(`✅ pdf-parse extracted ${cleanText.length} characters (${Math.round(readableRatio * 100)}% readable)`);
+          console.log(`📝 First 100 chars: ${cleanText.substring(0, 100)}...`);
+          return cleanText;
+        } else {
+          console.log(`⚠️ pdf-parse text appears garbled (${Math.round(readableRatio * 100)}% readable)`);
+        }
       } else {
         console.log('⚠️ pdf-parse returned minimal text');
       }
@@ -427,14 +492,29 @@ async function extractPDFTextReliable(buffer, fileName) {
         
         const fallbackOptions = {
           normalizeWhitespace: true,
-          disableCombineTextItems: true
+          disableCombineTextItems: true,
+          max: 0
         };
         
         const pdfData = await pdfParse.default(buffer, fallbackOptions);
         
         if (pdfData.text && pdfData.text.trim().length > 5) {
-          console.log(`✅ pdf-parse retry extracted ${pdfData.text.length} characters`);
-          return pdfData.text.trim();
+          // Clean the text again
+          let cleanText = pdfData.text
+            .replace(/\0/g, '')
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          const readableChars = cleanText.match(/[a-zA-ZäöüßÄÖÜ0-9\s.,!?()-]/g);
+          const readableRatio = readableChars ? readableChars.length / cleanText.length : 0;
+          
+          if (readableRatio > 0.7) {
+            console.log(`✅ pdf-parse retry extracted ${cleanText.length} characters (${Math.round(readableRatio * 100)}% readable)`);
+            return cleanText;
+          } else {
+            console.log(`⚠️ pdf-parse retry text also appears garbled (${Math.round(readableRatio * 100)}% readable)`);
+          }
         }
         
       } catch (retryError) {
