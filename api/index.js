@@ -1254,6 +1254,74 @@ app.get('/api/documents/:id/file', async (req, res) => {
   }
 });
 
+// Get individual document with full content
+app.get('/api/documents/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📄 Fetching document with ID: ${id}`);
+    
+    // Try to get from Qdrant first
+    if (qdrant) {
+      try {
+        const result = await qdrant.retrieve(QDRANT_COLLECTION, {
+          ids: [parseInt(id)]
+        });
+        if (result && result.length > 0) {
+          const point = result[0];
+          const document = {
+            id: point.id,
+            filename: point.payload.filename,
+            text: point.payload.text,
+            documentType: point.payload.documentType,
+            uploadDate: point.payload.uploadDate,
+            fileSize: point.payload.fileSize,
+            extractedData: point.payload.extractedData || {}
+          };
+          console.log(`✅ Found document in Qdrant: ${document.filename}`);
+          return res.json(document);
+        }
+      } catch (qdrantError) {
+        console.error('❌ Qdrant retrieval failed:', qdrantError);
+      }
+    }
+    
+    // Try database if Qdrant fails
+    if (db) {
+      try {
+        const document = await db.getDocumentById(parseInt(id));
+        if (document) {
+          console.log(`✅ Found document in database: ${document.name}`);
+          return res.json({
+            id: document.id,
+            filename: document.name,
+            text: document.extracted_text,
+            documentType: document.document_type,
+            uploadDate: document.upload_date,
+            fileSize: document.file_size,
+            extractedData: {}
+          });
+        }
+      } catch (dbError) {
+        console.error('❌ Database retrieval failed:', dbError);
+      }
+    }
+    
+    // Try in-memory storage as fallback
+    const document = documents.find(doc => doc.id === id);
+    if (document) {
+      console.log(`✅ Found document in memory: ${document.filename}`);
+      return res.json(document);
+    }
+    
+    console.log(`❌ Document not found with ID: ${id}`);
+    res.status(404).json({ error: 'Document not found' });
+    
+  } catch (error) {
+    console.error('Error fetching document:', error);
+    res.status(500).json({ error: 'Failed to fetch document: ' + error.message });
+  }
+});
+
 // Delete document
 app.delete('/api/documents/:id', async (req, res) => {
   try {
