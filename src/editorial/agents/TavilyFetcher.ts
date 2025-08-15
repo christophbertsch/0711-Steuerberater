@@ -43,10 +43,17 @@ export class TavilyFetcher {
         const searchResults = await this.searchTavily(query, Array.from(allowedDomains));
         
         for (const result of searchResults) {
-          // Validate domain
+          // Validate domain (handle www prefixes)
           const url = new URL(result.url);
-          if (!allowedDomains.has(url.hostname)) {
-            skipped.push(`${result.url} - domain not authorized`);
+          const hostname = url.hostname;
+          const isAllowed = allowedDomains.has(hostname) || 
+                           allowedDomains.has(hostname.replace(/^www\./, '')) ||
+                           Array.from(allowedDomains).some(domain => 
+                             hostname === domain || hostname === 'www.' + domain
+                           );
+          
+          if (!isAllowed) {
+            skipped.push(`${result.url} - domain not authorized (${hostname})`);
             continue;
           }
 
@@ -115,11 +122,14 @@ export class TavilyFetcher {
         include_raw_content: true
       });
 
-      return searchResponse.results.map(result => ({
+      const mappedResults = searchResponse.results.map(result => ({
         url: result.url,
         title: result.title,
         content: result.content
       }));
+      
+      console.log(`🔍 Tavily search returned ${mappedResults.length} results for query: "${query}"`);
+      return mappedResults;
 
     } catch (error) {
       console.warn('⚠️ Tavily search failed, using fallback:', error);
@@ -154,9 +164,16 @@ export class TavilyFetcher {
     // Filter by allowed domains and query relevance
     return sources.filter(source => {
       const url = new URL(source.url);
-      return domains.includes(url.hostname) && 
-             (source.title.toLowerCase().includes(query.toLowerCase()) ||
-              source.content.toLowerCase().includes(query.toLowerCase()));
+      const hostname = url.hostname;
+      const isAllowed = domains.includes(hostname) || 
+                       domains.includes(hostname.replace(/^www\./, '')) ||
+                       domains.some(domain => hostname === domain || hostname === 'www.' + domain);
+      
+      const isRelevant = source.title.toLowerCase().includes(query.toLowerCase()) ||
+                        source.content.toLowerCase().includes(query.toLowerCase());
+      
+      console.log(`🔍 Mock source ${source.url} (${hostname}) - allowed: ${isAllowed}, relevant: ${isRelevant}`);
+      return isAllowed && isRelevant;
     });
   }
 
