@@ -205,12 +205,12 @@ const SpecializedAgents: React.FC = () => {
     ];
 
     const taxPatterns = [
-      // Exact patterns from the document format: "4. Einbehaltene Lohnsteuer von 3. 13.663 00"
-      /4\.\s+Einbehaltene\s+Lohnsteuer[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
-      /Einbehaltene\s+Lohnsteuer\s+von\s+3\.[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
-      // Try to match the exact values with spaces: 13.663 00
+      // Try to match the exact values with spaces first: 13.663 00
       /(13\.663)\s+(00)/i,
       /(13663)\s+(00)/i,
+      // More specific pattern for the document format: "4. Einbehaltene Lohnsteuer von 3. 13.663 00"
+      /Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /4\.\s+Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
       // Most specific patterns first (from document analysis)
       /Die\s+einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
       /einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
