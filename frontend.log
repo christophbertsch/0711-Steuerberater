@@ -1,10 +1,13 @@
 
 > tax-law-ai-app@1.0.0 dev
-> vite --host 0.0.0.0 --port 54628 --host 0.0.0.0 --port 13001
+> vite --host 0.0.0.0 --port 54628 --host 0.0.0.0 --port 12001
 
+Port 12001 is in use, trying another one...
+Port 12002 is in use, trying another one...
+Port 12003 is in use, trying another one...
 
-  VITE v4.5.14  ready in 172 ms
+  VITE v4.5.14  ready in 171 ms
 
-  ➜  Local:   http://localhost:13001/
-  ➜  Network: http://10.2.32.137:13001/
+  ➜  Local:   http://localhost:12004/
+  ➜  Network: http://10.2.32.137:12004/
   ➜  press h to show help

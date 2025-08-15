@@ -35,3 +35,13 @@ Failed to initialize database: error: password authentication failed for user "p
 ✅ Generated embedding for query: "Lohnsteuerbescheinigung"
 📊 Found 3 similar documents
 ✅ Found 3 semantically similar documents
+🔍 Semantic search request: "test"
+🔍 Searching Qdrant for: "test"
+✅ Generated embedding for query: "test"
+📊 Found 1 similar documents
+✅ Found 1 semantically similar documents
+🔍 Semantic search request: "test"
+🔍 Searching Qdrant for: "test"
+✅ Generated embedding for query: "test"
+📊 Found 1 similar documents
+✅ Found 1 semantically similar documents

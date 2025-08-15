@@ -6,7 +6,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 54628,
-    cors: true
+    cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:13000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
   build: {
     outDir: 'dist',
