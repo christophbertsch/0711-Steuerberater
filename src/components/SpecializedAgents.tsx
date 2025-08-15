@@ -81,10 +81,19 @@ const SpecializedAgents: React.FC = () => {
         console.log('📄 Found Lohnsteuer document:', lohnsteuerDoc ? lohnsteuerDoc.filename : 'None');
 
         if (lohnsteuerDoc) {
+          console.log('📄 Document text preview:', lohnsteuerDoc.text?.substring(0, 500) + '...');
           const extractedData = extractDataFromLohnsteuerText(lohnsteuerDoc.text);
           console.log('💰 Extracted data:', extractedData);
           
-          if (extractedData.salary > 0) {
+          // Check if we have any useful data (not just salary)
+          const hasUsefulData = extractedData.salary > 0 || 
+                               extractedData.age || 
+                               (extractedData.socialInsurance && extractedData.socialInsurance > 0) || 
+                               (extractedData.tax && extractedData.tax > 0) ||
+                               extractedData.maritalStatus ||
+                               extractedData.hasChildren !== undefined;
+          
+          if (hasUsefulData) {
             setLohnsteuerData({
               ...extractedData,
               documentName: lohnsteuerDoc.filename,
@@ -93,15 +102,23 @@ const SpecializedAgents: React.FC = () => {
             
             setUserProfile(prev => ({
               ...prev,
-              income: extractedData.salary,
+              income: extractedData.salary > 0 ? extractedData.salary : prev.income,
               age: extractedData.age || prev.age,
               maritalStatus: extractedData.maritalStatus || prev.maritalStatus,
-              hasChildren: extractedData.hasChildren || prev.hasChildren
+              hasChildren: extractedData.hasChildren !== undefined ? extractedData.hasChildren : prev.hasChildren
             }));
             
             setDataSource('document');
             console.log('✅ Successfully updated user profile with Qdrant data');
+            console.log('📋 Updated profile data:', {
+              income: extractedData.salary > 0 ? extractedData.salary : 'unchanged',
+              age: extractedData.age || 'unchanged',
+              maritalStatus: extractedData.maritalStatus || 'unchanged',
+              hasChildren: extractedData.hasChildren !== undefined ? extractedData.hasChildren : 'unchanged'
+            });
             return extractedData;
+          } else {
+            console.log('⚠️ No useful data found in document');
           }
         }
       } else {
@@ -119,26 +136,39 @@ const SpecializedAgents: React.FC = () => {
   const extractDataFromLohnsteuerText = (text: string) => {
     if (!text) return { salary: 0 };
 
-    const extractNumber = (patterns: RegExp[]): number => {
+    const extractNumber = (patterns: RegExp[], label: string = ''): number => {
       for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
+          console.log(`🔍 ${label} pattern matched:`, pattern.toString(), 'found:', match[1]);
           // Handle German number format (1.234,56 or 1234,56)
           const numStr = match[1].replace(/\./g, '').replace(',', '.');
           const num = parseFloat(numStr);
-          if (!isNaN(num) && num > 0) return Math.round(num);
+          if (!isNaN(num) && num > 0) {
+            console.log(`✅ ${label} extracted:`, Math.round(num));
+            return Math.round(num);
+          }
         }
       }
+      console.log(`❌ No ${label} found`);
       return 0;
     };
 
-    // German Lohnsteuer patterns
+    // German Lohnsteuer patterns - more comprehensive
     const salaryPatterns = [
       /Bruttoarbeitslohn[:\s]*([0-9.,]+)/i,
       /Bruttolohn[:\s]*([0-9.,]+)/i,
       /Jahresbrutto[:\s]*([0-9.,]+)/i,
       /Gesamtbrutto[:\s]*([0-9.,]+)/i,
-      /Bruttoverdienst[:\s]*([0-9.,]+)/i
+      /Bruttoverdienst[:\s]*([0-9.,]+)/i,
+      /Brutto[:\s]*([0-9.,]+)/i,
+      /Arbeitslohn[:\s]*([0-9.,]+)/i,
+      /Lohn[:\s]*([0-9.,]+)/i,
+      /Gehalt[:\s]*([0-9.,]+)/i,
+      /Einkommen[:\s]*([0-9.,]+)/i,
+      // Pattern for Euro amounts
+      /([0-9.,]+)\s*€?\s*Brutto/i,
+      /([0-9.,]+)\s*EUR?\s*Brutto/i
     ];
 
     const taxPatterns = [
@@ -152,9 +182,9 @@ const SpecializedAgents: React.FC = () => {
       /Krankenversicherung[:\s]*([0-9.,]+)/i
     ];
 
-    const salary = extractNumber(salaryPatterns);
-    const tax = extractNumber(taxPatterns);
-    const socialInsurance = extractNumber(socialInsurancePatterns);
+    const salary = extractNumber(salaryPatterns, 'Salary');
+    const tax = extractNumber(taxPatterns, 'Tax');
+    const socialInsurance = extractNumber(socialInsurancePatterns, 'Social Insurance');
 
     // Extract age from birth date
     const birthMatch = text.match(/geboren[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i) ||
