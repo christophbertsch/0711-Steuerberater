@@ -155,16 +155,27 @@ export class TavilyService {
     // Filter by domains if specified
     let filteredResults = mockResults;
     if (request.include_domains && request.include_domains.length > 0) {
+      console.log('🔍 Filtering mock results by domains:', request.include_domains);
       filteredResults = mockResults.filter(result => {
         try {
           const url = new URL(result.url);
-          return request.include_domains!.some(domain => 
-            url.hostname === domain || url.hostname.endsWith('.' + domain)
-          );
+          const matches = request.include_domains!.some(domain => {
+            // Check exact match
+            if (url.hostname === domain) return true;
+            // Check with www prefix
+            if (url.hostname === 'www.' + domain) return true;
+            // Check if hostname ends with the domain
+            if (url.hostname.endsWith('.' + domain)) return true;
+            return false;
+          });
+          console.log(`📋 URL ${result.url} (hostname: ${url.hostname}) matches: ${matches}`);
+          return matches;
         } catch (e) {
+          console.log(`❌ Invalid URL: ${result.url}`);
           return false;
         }
       });
+      console.log(`✅ Filtered results: ${filteredResults.length}/${mockResults.length}`);
     }
 
     // Limit results
