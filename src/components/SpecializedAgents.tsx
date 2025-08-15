@@ -156,6 +156,7 @@ const SpecializedAgents: React.FC = () => {
 
     // German Lohnsteuer patterns - more comprehensive
     const salaryPatterns = [
+      // Standard patterns
       /Bruttoarbeitslohn[:\s]*([0-9.,]+)/i,
       /Bruttolohn[:\s]*([0-9.,]+)/i,
       /Jahresbrutto[:\s]*([0-9.,]+)/i,
@@ -168,18 +169,29 @@ const SpecializedAgents: React.FC = () => {
       /Einkommen[:\s]*([0-9.,]+)/i,
       // Pattern for Euro amounts
       /([0-9.,]+)\s*€?\s*Brutto/i,
-      /([0-9.,]+)\s*EUR?\s*Brutto/i
+      /([0-9.,]+)\s*EUR?\s*Brutto/i,
+      // Specific patterns based on the document analysis
+      /beträgt\s+([0-9.,]+)\s*Euro/i,
+      /von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      /Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i
     ];
 
     const taxPatterns = [
       /Lohnsteuer[:\s]*([0-9.,]+)/i,
-      /Einkommensteuer[:\s]*([0-9.,]+)/i
+      /Einkommensteuer[:\s]*([0-9.,]+)/i,
+      // Specific patterns from document analysis
+      /einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      /Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i
     ];
 
     const socialInsurancePatterns = [
       /Sozialversicherung[:\s]*([0-9.,]+)/i,
       /Rentenversicherung[:\s]*([0-9.,]+)/i,
-      /Krankenversicherung[:\s]*([0-9.,]+)/i
+      /Krankenversicherung[:\s]*([0-9.,]+)/i,
+      // Patterns for social insurance contributions
+      /Sozialversicherungsbeiträge[:\s]*€?([0-9.,]+)/i,
+      /Beiträge\s+zur\s+gesetzlichen\s+Rentenversicherung[:\s]*([0-9.,]+)/i,
+      /€([0-9.,]+)\s*Sozialversicherungsbeiträge/i
     ];
 
     const salary = extractNumber(salaryPatterns, 'Salary');
