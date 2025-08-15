@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Cpu, Play, CheckCircle, AlertCircle, Clock, FileText, Users, Target, Download } from 'lucide-react';
+import { agentManager, AgentExecutionContext, AgentExecutionResult } from '../agents/AgentManager';
+import { TAX_AGENT_REGISTRY } from '../agents/registry';
 
 // Core Types for Tax System
 interface TaxPosition {
@@ -23,47 +26,74 @@ interface TaxRule {
   success_rate: number;
 }
 
-interface AgentResult {
-  agent: string;
-  positions: TaxPosition[];
-  needs: string[];
-  confidence: number;
-  evidence_refs: string[];
-}
+// Using AgentExecutionResult from AgentManager instead
 
 interface OrchestrationPlan {
-  plan_id: string;
-  steps: Array<{
-    id: string;
-    agent: string;
-    args: any;
-    needs: string[];
-    status: 'pending' | 'running' | 'completed' | 'failed';
-  }>;
-  routing: {
-    on_error: string;
-    concurrency: string;
-  };
-  success_criteria: string[];
+  task: string;
+  profile: any;
+  year: number;
+  agents: string[];
+  workflow_steps: WorkflowStep[];
+  estimated_duration: number;
+}
+
+interface WorkflowStep {
+  id: string;
+  name: string;
+  agents: string[];
+  status: 'pending' | 'running' | 'completed' | 'error';
+  dependencies: string[];
+  results?: AgentExecutionResult[];
 }
 
 const TaxOrchestrator: React.FC = () => {
   const [orchestrationPlan, setOrchestrationPlan] = useState<OrchestrationPlan | null>(null);
-  const [agentResults, setAgentResults] = useState<AgentResult[]>([]);
+  const [agentResults, setAgentResults] = useState<AgentExecutionResult[]>([]);
   const [taxPositions, setTaxPositions] = useState<TaxPosition[]>([]);
-  const [learnedRules, setLearnedRules] = useState<TaxRule[]>([]);
+  const [, setLearnedRules] = useState<TaxRule[]>([]);
   const [processing, setProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
+  const [executionContext, setExecutionContext] = useState<AgentExecutionContext | null>(null);
 
   // Initialize Tax Orchestrator
   const initializeOrchestrator = async () => {
-    console.log('🧠 Initializing Tax AI Orchestrator...');
+    console.log('🧠 Initializing Tax AI Orchestrator with Production Agent System...');
+    
+    // Load available agents
+    const agents = agentManager.listAgents();
+    setAvailableAgents(agents.map(a => a.name));
+    
+    console.log(`✅ Loaded ${agents.length} production tax agents:`, agents.map(a => a.name));
+    
+    // Initialize sample execution context
+    const sampleContext: AgentExecutionContext = {
+      task: 'Complete income tax filing for individual',
+      profile: {
+        entity: 'individual',
+        tax_id: '12345678901',
+        marital_status: 'single',
+        employer: false,
+        has_trade_tax: false,
+        bookkeeping: 'eur'
+      },
+      year: 2024,
+      jurisdiction: 'DE',
+      positions: [
+        { type: 'wages', amount: 75000, description: 'Salary from employment' },
+        { type: 'werbungskosten', amount: 1200, description: 'Work-related expenses' }
+      ],
+      evidence: [],
+      policies: { continue_on_error: false }
+    };
+    
+    setExecutionContext(sampleContext);
     
     // Load existing learned rules
     await loadLearnedRules();
     
     // Create orchestration plan
-    const plan = await createOrchestrationPlan();
+    const plan = await createOrchestrationPlan(sampleContext);
     setOrchestrationPlan(plan);
   };
 
@@ -83,504 +113,159 @@ const TaxOrchestrator: React.FC = () => {
     }
   };
 
-  // Create orchestration plan based on available documents
-  const createOrchestrationPlan = async (): Promise<OrchestrationPlan> => {
+  // Create orchestration plan based on execution context
+  const createOrchestrationPlan = async (context: AgentExecutionContext): Promise<OrchestrationPlan> => {
+    console.log('📋 Creating orchestration plan for:', context.task);
+    
+    // Find matching agents for the task
+    const matchingAgents = agentManager.findAgentsForTask(context);
+    
     const plan: OrchestrationPlan = {
-      plan_id: `plan_${Date.now()}`,
-      steps: [
+      task: context.task,
+      profile: context.profile,
+      year: context.year,
+      agents: matchingAgents,
+      workflow_steps: [
         {
-          id: 'doc_classification',
-          agent: 'DOC_TYPE_CLASSIFIER',
-          args: { limit: 50 },
-          needs: [],
-          status: 'pending'
+          id: 'agent_selection',
+          name: 'Agent Selection & Validation',
+          agents: matchingAgents,
+          status: 'pending',
+          dependencies: []
         },
         {
-          id: 'lstb_analysis',
-          agent: 'LSTB_PARSER',
-          args: { doc_type: 'lohnsteuerbescheinigung' },
-          needs: ['doc_classification'],
-          status: 'pending'
+          id: 'form_generation',
+          name: 'Tax Form Generation',
+          agents: matchingAgents,
+          status: 'pending',
+          dependencies: ['agent_selection']
         },
         {
-          id: 'invoice_analysis',
-          agent: 'INVOICE_PARSER',
-          args: { doc_type: 'rechnung' },
-          needs: ['doc_classification'],
-          status: 'pending'
-        },
-        {
-          id: 'werbungskosten_council',
-          agent: 'N_WK_BASE',
-          args: {},
-          needs: ['lstb_analysis', 'invoice_analysis'],
-          status: 'pending'
-        },
-        {
-          id: 'tax_calculation',
-          agent: 'TARIFF_ENGINE',
-          args: { year: 2024 },
-          needs: ['werbungskosten_council'],
-          status: 'pending'
-        },
-        {
-          id: 'optimization',
-          agent: 'WHAT_IF',
-          args: {},
-          needs: ['tax_calculation'],
-          status: 'pending'
+          id: 'validation',
+          name: 'ERiC Validation & XML Generation',
+          agents: ['VALIDATOR'],
+          status: 'pending',
+          dependencies: ['form_generation']
         }
       ],
-      routing: {
-        on_error: 'HUMAN_REVIEW',
-        concurrency: 'bounded'
-      },
-      success_criteria: [
-        'no_validation_errors',
-        'all_required_forms_mapped',
-        'confidence_above_threshold'
-      ]
+      estimated_duration: matchingAgents.length * 30 // 30 seconds per agent
     };
-
+    
+    console.log(`✅ Created plan with ${matchingAgents.length} agents:`, matchingAgents);
     return plan;
   };
 
-  // Execute orchestration plan
+  // Execute orchestration plan with production agents
   const executeOrchestration = async () => {
-    if (!orchestrationPlan) return;
+    if (!orchestrationPlan || !executionContext) return;
 
     setProcessing(true);
-    const results: AgentResult[] = [];
-
+    setCurrentStep('Initializing agent execution...');
+    
     try {
-      for (const step of orchestrationPlan.steps) {
-        setCurrentStep(step.agent);
-        step.status = 'running';
-        
-        console.log(`🤖 Executing agent: ${step.agent}`);
-        
-        const result = await executeAgent(step.agent, step.args);
-        results.push(result);
-        
-        // Learn from agent results
-        await learnFromAgentResult(result);
-        
-        step.status = 'completed';
-        
-        // Update UI
-        setAgentResults([...results]);
+      console.log('🚀 Starting orchestration execution with production agents');
+      
+      // Execute agents in sequence
+      const results = await agentManager.executeAgents(
+        orchestrationPlan.agents, 
+        executionContext
+      );
+      
+      setAgentResults(results);
+      
+      // Process results and extract tax positions
+      const allPositions: TaxPosition[] = [];
+      
+      for (const result of results) {
+        if (result.result === 'ok' && result.forms) {
+          // Convert form fields to tax positions
+          for (const form of result.forms) {
+            for (const field of form.fields || []) {
+              allPositions.push({
+                formular: form.form,
+                kennziffer: field.kz,
+                value: typeof field.value === 'number' ? field.value : 0,
+                year: executionContext.year,
+                evidence: [],
+                explanation: field.description || `Generated by ${result.agent}`,
+                confidence: 0.95,
+                agent: result.agent
+              });
+            }
+          }
+        }
       }
-
-      // Consolidate all positions
-      const allPositions = results.flatMap(r => r.positions);
+      
       setTaxPositions(allPositions);
-
-      console.log('✅ Orchestration completed successfully');
+      
+      // Update workflow steps status
+      const updatedPlan = { ...orchestrationPlan };
+      updatedPlan.workflow_steps = updatedPlan.workflow_steps.map(step => ({
+        ...step,
+        status: 'completed' as const,
+        results: results.filter(r => step.agents.includes(r.agent))
+      }));
+      
+      setOrchestrationPlan(updatedPlan);
+      
+      console.log(`✅ Orchestration completed with ${results.length} agent results`);
+      console.log(`📊 Generated ${allPositions.length} tax positions`);
       
     } catch (error) {
-      console.error('❌ Orchestration failed:', error);
+      console.error('❌ Orchestration execution failed:', error);
+      setCurrentStep(`Error: ${(error as Error).message}`);
     } finally {
       setProcessing(false);
-      setCurrentStep('');
     }
   };
 
-  // Execute individual agent
-  const executeAgent = async (agentName: string, args: any): Promise<AgentResult> => {
-    switch (agentName) {
-      case 'DOC_TYPE_CLASSIFIER':
-        return await executeDocTypeClassifier(args);
-      case 'LSTB_PARSER':
-        return await executeLstbParser(args);
-      case 'INVOICE_PARSER':
-        return await executeInvoiceParser(args);
-      case 'N_WK_BASE':
-        return await executeWerbungskostenAgent(args);
-      case 'TARIFF_ENGINE':
-        return await executeTariffEngine(args);
-      case 'WHAT_IF':
-        return await executeOptimizer(args);
-      default:
-        throw new Error(`Unknown agent: ${agentName}`);
-    }
-  };
-
-  // Document Type Classifier Agent
-  const executeDocTypeClassifier = async (args: any): Promise<AgentResult> => {
-    const response = await fetch('/api/documents/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '', limit: args.limit || 50 })
-    });
-
-    const data = await response.json();
-    const documents = data.results || [];
-
-    const positions: TaxPosition[] = [];
-    const classifications = new Map<string, number>();
-
-    for (const doc of documents) {
-      const docType = classifyDocument(doc.text, doc.filename);
-      classifications.set(docType, (classifications.get(docType) || 0) + 1);
-    }
-
-    // Create classification summary positions
-    for (const [docType, count] of classifications) {
-      positions.push({
-        formular: 'CLASSIFICATION',
-        kennziffer: docType,
-        value: count,
-        year: 2024,
-        evidence: [`${count} documents classified as ${docType}`],
-        explanation: `Automatisch klassifiziert: ${count} Dokumente als ${docType}`,
+  // Get basic tax rules for initialization
+  const getBasicTaxRules = (): TaxRule[] => {
+    return [
+      {
+        id: 'werbungskosten_pauschbetrag',
+        rule_type: 'calculation',
+        condition: 'werbungskosten < 1230',
+        action: 'apply_pauschbetrag(1230)',
+        confidence: 0.98,
+        learned_from: ['EStG §9a'],
+        last_updated: new Date().toISOString(),
+        success_rate: 0.98
+      },
+      {
+        id: 'computer_werbungskosten',
+        rule_type: 'classification',
+        condition: 'item_type == "computer" && business_use > 0.5',
+        action: 'classify_as_werbungskosten',
         confidence: 0.85,
-        agent: 'DOC_TYPE_CLASSIFIER'
-      });
-    }
-
-    return {
-      agent: 'DOC_TYPE_CLASSIFIER',
-      positions,
-      needs: [],
-      confidence: 0.85,
-      evidence_refs: documents.map((d: any) => d.id)
-    };
-  };
-
-  // Lohnsteuerbescheinigung Parser Agent
-  const executeLstbParser = async (_args: any): Promise<AgentResult> => {
-    const response = await fetch('/api/documents/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'Lohnsteuerbescheinigung Bruttoarbeitslohn', limit: 10 })
-    });
-
-    const data = await response.json();
-    const documents = data.results || [];
-
-    const positions: TaxPosition[] = [];
-
-    for (const doc of documents) {
-      if (doc.text?.toLowerCase().includes('lohnsteuerbescheinigung')) {
-        // Extract tax positions from Lohnsteuerbescheinigung
-        const extractedData = extractLstbData(doc.text);
-        
-        if (extractedData.bruttoarbeitslohn > 0) {
-          positions.push({
-            formular: 'Anlage N',
-            kennziffer: '001',
-            value: extractedData.bruttoarbeitslohn,
-            year: 2024,
-            evidence: [doc.id],
-            explanation: 'Bruttoarbeitslohn aus Lohnsteuerbescheinigung',
-            confidence: 0.95,
-            agent: 'LSTB_PARSER'
-          });
-        }
-
-        if (extractedData.lohnsteuer > 0) {
-          positions.push({
-            formular: 'Anlage N',
-            kennziffer: '002',
-            value: extractedData.lohnsteuer,
-            year: 2024,
-            evidence: [doc.id],
-            explanation: 'Einbehaltene Lohnsteuer',
-            confidence: 0.95,
-            agent: 'LSTB_PARSER'
-          });
-        }
-      }
-    }
-
-    return {
-      agent: 'LSTB_PARSER',
-      positions,
-      needs: positions.length === 0 ? ['lohnsteuerbescheinigung_required'] : [],
-      confidence: 0.95,
-      evidence_refs: documents.map((d: any) => d.id)
-    };
-  };
-
-  // Invoice Parser Agent
-  const executeInvoiceParser = async (_args: any): Promise<AgentResult> => {
-    const response = await fetch('/api/documents/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'Rechnung Invoice', limit: 20 })
-    });
-
-    const data = await response.json();
-    const documents = data.results || [];
-
-    const positions: TaxPosition[] = [];
-
-    for (const doc of documents) {
-      const invoiceData = parseInvoice(doc.text, doc.filename);
-      
-      if (invoiceData.amount > 0 && invoiceData.category === 'werbungskosten') {
-        positions.push({
-          formular: 'Anlage N',
-          kennziffer: 'WK001',
-          value: invoiceData.amount,
-          year: 2024,
-          evidence: [doc.id],
-          explanation: `Werbungskosten: ${invoiceData.description}`,
-          confidence: invoiceData.confidence,
-          agent: 'INVOICE_PARSER'
-        });
-      }
-    }
-
-    return {
-      agent: 'INVOICE_PARSER',
-      positions,
-      needs: [],
-      confidence: 0.80,
-      evidence_refs: documents.map((d: any) => d.id)
-    };
-  };
-
-  // Werbungskosten Base Agent (Council)
-  const executeWerbungskostenAgent = async (_args: any): Promise<AgentResult> => {
-    // Get all Werbungskosten positions from previous agents
-    const wkPositions = agentResults
-      .flatMap(r => r.positions)
-      .filter(p => p.formular === 'Anlage N' && p.kennziffer.startsWith('WK'));
-
-    const totalWerbungskosten = wkPositions.reduce((sum, p) => sum + p.value, 0);
-    const pauschbetrag = 1230; // 2024 Werbungskosten-Pauschbetrag
-
-    const positions: TaxPosition[] = [];
-
-    if (totalWerbungskosten > pauschbetrag) {
-      // Use individual Werbungskosten
-      positions.push(...wkPositions);
-      positions.push({
-        formular: 'Anlage N',
-        kennziffer: 'WK_DECISION',
-        value: totalWerbungskosten,
-        year: 2024,
-        evidence: wkPositions.flatMap(p => p.evidence),
-        explanation: `Einzelnachweis gewählt: €${totalWerbungskosten} > Pauschbetrag €${pauschbetrag}`,
-        confidence: 0.90,
-        agent: 'N_WK_BASE'
-      });
-    } else {
-      // Use Pauschbetrag
-      positions.push({
-        formular: 'Anlage N',
-        kennziffer: 'WK_PAUSCH',
-        value: pauschbetrag,
-        year: 2024,
-        evidence: ['Werbungskosten-Pauschbetrag 2024'],
-        explanation: `Pauschbetrag gewählt: €${pauschbetrag} > Einzelnachweis €${totalWerbungskosten}`,
-        confidence: 0.95,
-        agent: 'N_WK_BASE'
-      });
-    }
-
-    return {
-      agent: 'N_WK_BASE',
-      positions,
-      needs: [],
-      confidence: 0.90,
-      evidence_refs: wkPositions.flatMap(p => p.evidence)
-    };
-  };
-
-  // Tariff Engine Agent
-  const executeTariffEngine = async (_args: any): Promise<AgentResult> => {
-    const allPositions = agentResults.flatMap(r => r.positions);
-    
-    // Calculate zu versteuerndes Einkommen
-    const bruttoarbeitslohn = allPositions.find(p => p.kennziffer === '001')?.value || 0;
-    const werbungskosten = allPositions.find(p => p.kennziffer.startsWith('WK'))?.value || 1230;
-    
-    const zvE = Math.max(0, bruttoarbeitslohn - werbungskosten);
-    
-    // Simple tax calculation (2024 tariff)
-    const einkommensteuer = calculateIncomeTax2024(zvE);
-    const solidaritaetszuschlag = einkommensteuer * 0.055;
-
-    const positions: TaxPosition[] = [
-      {
-        formular: 'ESt',
-        kennziffer: 'ZVE',
-        value: zvE,
-        year: 2024,
-        evidence: ['Calculated from income and deductions'],
-        explanation: `Zu versteuerndes Einkommen: €${bruttoarbeitslohn} - €${werbungskosten}`,
-        confidence: 0.95,
-        agent: 'TARIFF_ENGINE'
-      },
-      {
-        formular: 'ESt',
-        kennziffer: 'EST',
-        value: einkommensteuer,
-        year: 2024,
-        evidence: ['2024 tax tariff calculation'],
-        explanation: `Einkommensteuer nach Tarif 2024`,
-        confidence: 0.95,
-        agent: 'TARIFF_ENGINE'
-      },
-      {
-        formular: 'ESt',
-        kennziffer: 'SOLI',
-        value: solidaritaetszuschlag,
-        year: 2024,
-        evidence: ['5.5% of income tax'],
-        explanation: `Solidaritätszuschlag: 5,5% von €${einkommensteuer}`,
-        confidence: 0.95,
-        agent: 'TARIFF_ENGINE'
+        learned_from: ['BFH_cases', 'user_feedback'],
+        last_updated: new Date().toISOString(),
+        success_rate: 0.85
       }
     ];
-
-    return {
-      agent: 'TARIFF_ENGINE',
-      positions,
-      needs: [],
-      confidence: 0.95,
-      evidence_refs: []
-    };
   };
 
-  // What-If Optimizer Agent
-  const executeOptimizer = async (_args: any): Promise<AgentResult> => {
-    const positions: TaxPosition[] = [];
+  // Test specific agent execution
+  const testAgentExecution = async (agentName: string) => {
+    if (!executionContext) return;
     
-    // Analyze optimization opportunities
-    const currentTax = agentResults
-      .flatMap(r => r.positions)
-      .find(p => p.kennziffer === 'EST')?.value || 0;
-
-    positions.push({
-      formular: 'OPTIMIZATION',
-      kennziffer: 'CURRENT_TAX',
-      value: currentTax,
-      year: 2024,
-      evidence: ['Current tax calculation'],
-      explanation: `Aktuelle Steuerlast: €${currentTax}`,
-      confidence: 0.90,
-      agent: 'WHAT_IF'
-    });
-
-    return {
-      agent: 'WHAT_IF',
-      positions,
-      needs: [],
-      confidence: 0.90,
-      evidence_refs: []
-    };
-  };
-
-  // Learn from agent results
-  const learnFromAgentResult = async (result: AgentResult) => {
-    // Create new learned rules based on successful patterns
-    const newRules: TaxRule[] = [];
-
-    for (const position of result.positions) {
-      if (position.confidence > 0.8) {
-        const rule: TaxRule = {
-          id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          rule_type: 'calculation',
-          condition: `agent=${result.agent} AND confidence>${position.confidence}`,
-          action: `apply_position(${position.formular}, ${position.kennziffer}, ${position.value})`,
-          confidence: position.confidence,
-          learned_from: position.evidence,
-          last_updated: new Date().toISOString(),
-          success_rate: 1.0
-        };
-        newRules.push(rule);
-      }
-    }
-
-    // Add to learned rules
-    setLearnedRules(prev => [...prev, ...newRules]);
-
-    // Store in knowledge base
+    setProcessing(true);
+    setCurrentStep(`Testing ${agentName}...`);
+    
     try {
-      await fetch('/api/tax/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: newRules })
-      });
+      const result = await agentManager.executeAgent(agentName, executionContext);
+      console.log(`🧪 Test result for ${agentName}:`, result);
+      
+      setAgentResults([result]);
+      setCurrentStep(`✅ ${agentName} test completed`);
+      
     } catch (error) {
-      console.error('❌ Error storing learned rules:', error);
+      console.error(`❌ Test failed for ${agentName}:`, error);
+      setCurrentStep(`❌ ${agentName} test failed`);
+    } finally {
+      setProcessing(false);
     }
   };
-
-  // Helper functions
-  const classifyDocument = (text: string, filename: string): string => {
-    const content = (text + ' ' + filename).toLowerCase();
-    
-    if (content.includes('lohnsteuerbescheinigung')) return 'LSTB';
-    if (content.includes('rechnung') || content.includes('invoice')) return 'RECHNUNG';
-    if (content.includes('spende')) return 'SPENDENQUITTUNG';
-    if (content.includes('bescheid')) return 'BESCHEID';
-    if (content.includes('versicherung')) return 'VERSICHERUNG';
-    
-    return 'UNKNOWN';
-  };
-
-  const extractLstbData = (text: string) => {
-    // Extract key values from Lohnsteuerbescheinigung
-    const bruttoMatch = text.match(/bruttoarbeitslohn[:\s]*([0-9.,]+)/i);
-    const steuerMatch = text.match(/lohnsteuer[:\s]*([0-9.,]+)/i);
-    
-    return {
-      bruttoarbeitslohn: bruttoMatch ? parseFloat(bruttoMatch[1].replace(/[.,]/g, '')) / 100 : 0,
-      lohnsteuer: steuerMatch ? parseFloat(steuerMatch[1].replace(/[.,]/g, '')) / 100 : 0
-    };
-  };
-
-  const parseInvoice = (text: string, filename: string) => {
-    // Parse invoice data
-    const amountMatch = text.match(/([0-9]+[.,][0-9]{2})\s*€/);
-    const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 0;
-    
-    const content = (text + ' ' + filename).toLowerCase();
-    const category = content.match(/(computer|laptop|software|telefon|datentechnik)/) ? 'werbungskosten' : 'other';
-    
-    return {
-      amount,
-      category,
-      description: filename,
-      confidence: amount > 0 ? 0.8 : 0.3
-    };
-  };
-
-  const calculateIncomeTax2024 = (zvE: number): number => {
-    // Simplified 2024 German income tax calculation
-    if (zvE <= 11604) return 0;
-    if (zvE <= 17005) return Math.round((zvE - 11604) * 0.14);
-    if (zvE <= 66760) return Math.round(1190.04 + (zvE - 17005) * 0.24);
-    if (zvE <= 277825) return Math.round(13141.24 + (zvE - 66760) * 0.42);
-    return Math.round(101462.77 + (zvE - 277825) * 0.45);
-  };
-
-  const getBasicTaxRules = (): TaxRule[] => [
-    {
-      id: 'rule_wk_pauschbetrag',
-      rule_type: 'calculation',
-      condition: 'werbungskosten < 1230',
-      action: 'use_pauschbetrag(1230)',
-      confidence: 0.95,
-      learned_from: ['EStG §9a'],
-      last_updated: new Date().toISOString(),
-      success_rate: 1.0
-    },
-    {
-      id: 'rule_computer_werbungskosten',
-      rule_type: 'classification',
-      condition: 'document_contains(computer|laptop|software) AND employment_status=employee',
-      action: 'classify_as_werbungskosten',
-      confidence: 0.85,
-      learned_from: ['BFH VI R 36/17'],
-      last_updated: new Date().toISOString(),
-      success_rate: 0.9
-    }
-  ];
 
   useEffect(() => {
     initializeOrchestrator();
@@ -595,115 +280,261 @@ const TaxOrchestrator: React.FC = () => {
               🧠 Tax AI Orchestrator
             </h2>
             <p className="text-gray-600 mt-1">
-              Self-Learning Tax Content & Logic System
+              Production German Tax Declaration System
             </p>
           </div>
-          <button
-            onClick={executeOrchestration}
-            disabled={processing}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-          >
-            {processing ? '🔄 Processing...' : '🚀 Execute Tax Analysis'}
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={executeOrchestration}
+              disabled={processing || !orchestrationPlan}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+            >
+              <Play className="w-4 h-4" />
+              <span>Execute Plan</span>
+            </button>
+          </div>
         </div>
+
+        {/* Agent Registry Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span className="font-semibold text-blue-900">Available Agents</span>
+            </div>
+            <p className="text-2xl font-bold text-blue-600 mt-2">{availableAgents.length}</p>
+            <p className="text-sm text-blue-700">Production tax agents loaded</p>
+          </div>
+          
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-green-600" />
+              <span className="font-semibold text-green-900">Tax Forms</span>
+            </div>
+            <p className="text-2xl font-bold text-green-600 mt-2">
+              {TAX_AGENT_REGISTRY.reduce((sum, agent) => sum + agent.forms.length, 0)}
+            </p>
+            <p className="text-sm text-green-700">Supported German forms</p>
+          </div>
+          
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Target className="w-5 h-5 text-purple-600" />
+              <span className="font-semibold text-purple-900">Tax Positions</span>
+            </div>
+            <p className="text-2xl font-bold text-purple-600 mt-2">{taxPositions.length}</p>
+            <p className="text-sm text-purple-700">Generated positions</p>
+          </div>
+        </div>
+
+        {/* Current Execution Context */}
+        {executionContext && (
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Current Execution Context</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Task:</span>
+                <p className="font-medium">{executionContext.task}</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Entity:</span>
+                <p className="font-medium">{executionContext.profile.entity}</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Year:</span>
+                <p className="font-medium">{executionContext.year}</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Positions:</span>
+                <p className="font-medium">{executionContext.positions?.length || 0}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Processing Status */}
+        {processing && (
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-blue-600 animate-spin" />
+              <span className="font-medium text-blue-900">Processing...</span>
+            </div>
+            <p className="text-blue-700 mt-1">{currentStep}</p>
+          </div>
+        )}
 
         {/* Orchestration Plan */}
         {orchestrationPlan && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">📋 Orchestration Plan</h3>
-            <div className="space-y-2">
-              {orchestrationPlan.steps.map((step) => (
-                <div
-                  key={step.id}
-                  className={`p-3 rounded-lg border ${
-                    step.status === 'completed' ? 'bg-green-50 border-green-200' :
-                    step.status === 'running' ? 'bg-blue-50 border-blue-200' :
-                    step.status === 'failed' ? 'bg-red-50 border-red-200' :
-                    'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{step.agent}</span>
-                    <span className={`text-sm px-2 py-1 rounded-full ${
-                      step.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      step.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                      step.status === 'failed' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {step.status}
-                    </span>
+            <h3 className="font-semibold text-gray-900 mb-3">Orchestration Plan</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <span className="text-gray-600">Selected Agents:</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {orchestrationPlan.agents.map(agent => (
+                      <span key={agent} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        {agent}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              ))}
+                <div>
+                  <span className="text-gray-600">Estimated Duration:</span>
+                  <p className="font-medium">{orchestrationPlan.estimated_duration}s</p>
+                </div>
+              </div>
+              
+              {/* Workflow Steps */}
+              <div className="space-y-2">
+                {orchestrationPlan.workflow_steps.map(step => (
+                  <div key={step.id} className="flex items-center space-x-3 p-2 bg-white rounded border">
+                    {step.status === 'completed' ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : step.status === 'running' ? (
+                      <Clock className="w-5 h-5 text-blue-600 animate-spin" />
+                    ) : step.status === 'error' ? (
+                      <AlertCircle className="w-5 h-5 text-red-600" />
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
+                    )}
+                    <div className="flex-1">
+                      <span className="font-medium">{step.name}</span>
+                      <div className="text-sm text-gray-600">
+                        Agents: {step.agents.join(', ')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Current Processing */}
-        {processing && currentStep && (
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-blue-800 font-medium">
-                Currently executing: {currentStep}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Tax Positions */}
-        {taxPositions.length > 0 && (
+        {/* Agent Results */}
+        {agentResults.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">📊 Tax Positions</h3>
-            <div className="space-y-2">
-              {taxPositions.map((position, index) => (
-                <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-medium">{position.formular} - {position.kennziffer}</span>
-                      <p className="text-sm text-gray-600 mt-1">{position.explanation}</p>
+            <h3 className="font-semibold text-gray-900 mb-3">Agent Execution Results</h3>
+            <div className="space-y-3">
+              {agentResults.map((result, index) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <Cpu className="w-5 h-5 text-gray-600" />
+                      <span className="font-medium">{result.agent}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold">
-                        €{position.value.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {Math.round(position.confidence * 100)}% confidence
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      {result.result === 'ok' ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : result.result === 'error' ? (
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-yellow-600" />
+                      )}
+                      <span className="text-sm text-gray-600">
+                        {result.execution_time}ms
+                      </span>
                     </div>
                   </div>
+                  
+                  {result.forms && (
+                    <div className="mt-2">
+                      <span className="text-sm text-gray-600">Generated Forms:</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {result.forms.map((form, formIndex) => (
+                          <span key={formIndex} className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+                            {form.form} ({form.fields?.length || 0} fields)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {result.xml && (
+                    <div className="mt-2">
+                      <span className="text-sm text-gray-600">XML Generated:</span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                          {result.xml.schema}
+                        </span>
+                        <button className="text-blue-600 hover:text-blue-800 text-sm flex items-center space-x-1">
+                          <Download className="w-4 h-4" />
+                          <span>Download</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {result.needs && result.needs.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-sm text-red-600">Missing Information:</span>
+                      <ul className="list-disc list-inside text-sm text-red-700 mt-1">
+                        {result.needs.map((need, needIndex) => (
+                          <li key={needIndex}>{need}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Learned Rules */}
-        {learnedRules.length > 0 && (
+        {/* Tax Positions Generated */}
+        {taxPositions.length > 0 && (
           <div>
-            <h3 className="text-lg font-semibold mb-3">🧠 Learned Tax Rules ({learnedRules.length})</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {learnedRules.slice(-10).map((rule) => (
-                <div key={rule.id} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium text-purple-800">{rule.rule_type}</span>
-                      <p className="text-xs text-purple-600 mt-1">{rule.condition}</p>
+            <h3 className="font-semibold text-gray-900 mb-3">Generated Tax Positions</h3>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {taxPositions.slice(0, 6).map((position, index) => (
+                  <div key={index} className="bg-white p-3 rounded border">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-sm">{position.formular}</span>
+                      <span className="text-xs text-gray-500">KZ {position.kennziffer}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-purple-800">
-                        {Math.round(rule.confidence * 100)}%
-                      </div>
-                      <div className="text-xs text-purple-600">
-                        Success: {Math.round(rule.success_rate * 100)}%
-                      </div>
+                    <div className="text-lg font-bold text-green-600">
+                      €{position.value.toLocaleString('de-DE')}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {position.explanation}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-blue-600">{position.agent}</span>
+                      <span className="text-xs text-gray-500">
+                        {(position.confidence * 100).toFixed(0)}% confidence
+                      </span>
                     </div>
                   </div>
+                ))}
+              </div>
+              {taxPositions.length > 6 && (
+                <div className="text-center mt-4">
+                  <span className="text-sm text-gray-600">
+                    ... and {taxPositions.length - 6} more positions
+                  </span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
+
+        {/* Quick Agent Tests */}
+        <div className="mt-6 pt-6 border-t">
+          <h3 className="font-semibold text-gray-900 mb-3">Quick Agent Tests</h3>
+          <div className="flex flex-wrap gap-2">
+            {availableAgents.map(agent => (
+              <button
+                key={agent}
+                onClick={() => testAgentExecution(agent)}
+                disabled={processing}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm disabled:opacity-50"
+              >
+                Test {agent}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

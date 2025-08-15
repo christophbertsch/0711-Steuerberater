@@ -1,45 +1,28 @@
-[dotenv@17.2.1] injecting env (8) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
-✅ OpenAI API initialized successfully
-Tax & Law AI Expert server running on http://localhost:13000
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+❌ OpenAI API key not configured - AI analysis will use mock responses
+📚 Initialized tax knowledge base with core rules
+Database credentials not provided, database operations will be disabled
+Failed to initialize database: Error: Database pool not initialized - credentials not provided
+    at initializeDatabase (file:///workspace/project/0711-Steuerberater/database/connection.js:39:11)
+    at initApp (file:///workspace/project/0711-Steuerberater/api/index.js:101:11)
+Tax & Law AI Expert server running on http://localhost:56534
 Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
-Failed to initialize database: error: password authentication failed for user "postgres"
-    at /workspace/project/0711-Steuerberater/node_modules/pg-pool/index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async initializeDatabase (file:///workspace/project/0711-Steuerberater/database/connection.js:41:18)
-    at async initApp (file:///workspace/project/0711-Steuerberater/api/index.js:101:5) {
-  length: 104,
-  severity: 'FATAL',
-  code: '28P01',
-  detail: undefined,
-  hint: undefined,
-  position: undefined,
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'auth.c',
-  line: '349',
-  routine: 'auth_failed'
-}
-🔍 Semantic search request: "Lohnsteuerbescheinigung"
-🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
-✅ Generated embedding for query: "Lohnsteuerbescheinigung"
-📊 Found 5 similar documents
-🚫 Filtering out document 1755237885957 (Marc Weber_LSTB_2024_pt.pdf) - only 33% readable
-🚫 Filtering out document 1755221651621 (Cousera.pdf) - only 34% readable
-🚫 Filtering out document 1755239429710 (T-Rechnung Telekom 2024-09.pdf) - only 33% readable
-✅ Returning 2 clean documents (filtered out 3 corrupted)
-✅ Found 2 semantically similar documents
-🔍 Semantic search request: "Lohnsteuerbescheinigung"
-🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
-✅ Generated embedding for query: "Lohnsteuerbescheinigung"
-📊 Found 5 similar documents
-🚫 Filtering out document 1755237885957 (Marc Weber_LSTB_2024_pt.pdf) - only 33% readable
-🚫 Filtering out document 1755221651621 (Cousera.pdf) - only 34% readable
-🚫 Filtering out document 1755239429710 (T-Rechnung Telekom 2024-09.pdf) - only 33% readable
-✅ Returning 2 clean documents (filtered out 3 corrupted)
-✅ Found 2 semantically similar documents
+🔍 Semantic search request: "lohnsteuer"
+🔍 Searching Qdrant for: "lohnsteuer"
+Error generating embedding: Error: OpenAI client not initialized - API key not configured
+    at generateEmbedding (file:///workspace/project/0711-Steuerberater/api/index.js:118:13)
+    at searchDocumentsInQdrant (file:///workspace/project/0711-Steuerberater/api/index.js:233:30)
+    at file:///workspace/project/0711-Steuerberater/api/index.js:1424:35
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/layer.js:95:5)
+    at /workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:346:12)
+    at next (/workspace/project/0711-Steuerberater/node_modules/express/lib/router/index.js:280:10)
+⚠️ Failed to generate embedding (OpenAI client not initialized - API key not configured), using mock embedding
+📊 Found 3 similar documents
+🚫 Filtering out document 1755251777535 (C-Spendenquittung_Deutschland hilft_2024.pdf) - only 32% readable
+🚫 Filtering out document 1755256255047 (C-Spendenquittung_Deutschland hilft_2024.pdf) - only 32% readable
+✅ Returning 1 clean documents (filtered out 2 corrupted)
+✅ Found 1 semantically similar documents
