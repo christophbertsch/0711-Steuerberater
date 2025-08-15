@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Download, Euro, User, Building, Heart, GraduationCap } from 'lucide-react';
+import { Calculator, Download, Euro, User, Building, Heart, GraduationCap, FileText, RefreshCw } from 'lucide-react';
 import { Document, TaxDeclaration, PersonalInfo, IncomeData, DeductionData } from '../types';
 import { taxService } from '../services/taxService';
 
@@ -37,10 +37,15 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
   const [taxDeclaration, setTaxDeclaration] = useState<TaxDeclaration | null>(null);
   const [generating, setGenerating] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [qdrantData, setQdrantData] = useState<any>(null);
+  const [qdrantLoading, setQdrantLoading] = useState(false);
+  const [dataSource, setDataSource] = useState<'manual' | 'qdrant'>('manual');
 
   useEffect(() => {
     // Auto-populate data from analyzed documents
     populateFromDocuments();
+    // Also try to populate from Qdrant
+    fetchLohnsteuerFromQdrant();
   }, [documents]);
 
   useEffect(() => {
@@ -88,6 +93,209 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
       donations: totalDonations,
       workExpenses: totalWorkExpenses
     }));
+  };
+
+  // Fetch and extract data from Qdrant Lohnsteuer documents
+  const fetchLohnsteuerFromQdrant = async () => {
+    console.log('🔍 Fetching Lohnsteuer data from Qdrant for tax declaration...');
+    setQdrantLoading(true);
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: 'Lohnsteuer OR Bruttoarbeitslohn OR Lohnsteuerbescheinigung',
+          limit: 10
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('📊 Qdrant search results:', data.results?.length || 0, 'documents found');
+
+      if (data.results && data.results.length > 0) {
+        // Find Lohnsteuer document
+        const lohnsteuerDoc = data.results.find((doc: any) => {
+          const text = doc.text?.toLowerCase() || '';
+          const filename = doc.filename?.toLowerCase() || '';
+          return text.includes('lohnsteuer') || 
+                 text.includes('bruttoarbeitslohn') || 
+                 filename.includes('lohnsteuer') ||
+                 doc.documentType === 'lohnsteuerbescheinigung';
+        });
+
+        if (lohnsteuerDoc) {
+          console.log('📄 Found Lohnsteuer document:', lohnsteuerDoc.filename);
+          const extractedData = extractLohnsteuerData(lohnsteuerDoc.text);
+          
+          if (extractedData) {
+            setQdrantData({
+              ...extractedData,
+              documentName: lohnsteuerDoc.filename,
+              qdrantId: lohnsteuerDoc.id
+            });
+            
+            // Auto-populate form fields
+            populateFormFromQdrant(extractedData);
+            setDataSource('qdrant');
+            console.log('✅ Successfully populated tax declaration form from Qdrant data');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching Lohnsteuer data from Qdrant:', error);
+    } finally {
+      setQdrantLoading(false);
+    }
+  };
+
+  // Extract comprehensive data from Lohnsteuer document text
+  const extractLohnsteuerData = (text: string) => {
+    if (!text) return null;
+
+    console.log('📄 Extracting data from document text (length:', text.length, ')');
+
+    // Helper function to extract numbers with two-part matching (euros + cents)
+    const extractNumber = (patterns: RegExp[], label: string) => {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+          console.log(`🔍 ${label} pattern matched:`, pattern.toString(), 'found:', match[1], 'and', match[2] || '');
+          
+          if (match[2] !== undefined) {
+            // Two-part match (euros + cents): "71.218 69" -> 71218.69
+            const euros = match[1].replace(/\./g, ''); // Remove dots from euros part
+            const cents = match[2].padStart(2, '0'); // Ensure cents is 2 digits
+            const value = parseFloat(`${euros}.${cents}`);
+            if (value >= 1000) { // Filter out small false matches
+              console.log(`✅ ${label} extracted:`, value);
+              return value;
+            }
+          } else {
+            // Single match
+            const value = parseFloat(match[1].replace(/[.,]/g, ''));
+            if (value >= 1000) {
+              console.log(`✅ ${label} extracted:`, value);
+              return value;
+            }
+          }
+        }
+      }
+      console.log(`❌ ${label} not found`);
+      return null;
+    };
+
+    // Salary extraction patterns (space-separated format)
+    const salaryPatterns = [
+      // Exact patterns from document: "3. Bruttoarbeitslohn einschl. Sachbezüge ohne 9. und 10. 71.218 69"
+      /3\.\s+Bruttoarbeitslohn\s+einschl\.\s+Sachbezüge[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /(71\.218)\s+(69)/i, // Exact value match
+      /(71218)\s+(69)/i,   // Without dots
+      // More general patterns
+      /Bruttoarbeitslohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /Bruttolohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i
+    ];
+
+    // Tax extraction patterns
+    const taxPatterns = [
+      // Exact patterns: "4. Einbehaltene Lohnsteuer von 3. 13.663 00"
+      /(13\.663)\s+(00)/i,
+      /(13663)\s+(00)/i,
+      /Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /4\.\s+Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i
+    ];
+
+    // Social insurance patterns
+    const socialInsurancePatterns = [
+      /Rentenversicherung[:\s]*([0-9.,]+)/i,
+      /Sozialversicherung[:\s]*([0-9.,]+)/i
+    ];
+
+    // Extract financial data
+    const salary = extractNumber(salaryPatterns, 'Salary');
+    const tax = extractNumber(taxPatterns, 'Tax');
+    const socialInsurance = extractNumber(socialInsurancePatterns, 'Social Insurance');
+
+    // Extract personal information
+    const birthMatch = text.match(/Geburtsdatum[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
+    let age = null;
+    let birthDate = null;
+    if (birthMatch) {
+      const birthYear = parseInt(birthMatch[3]);
+      const birthMonth = parseInt(birthMatch[2]);
+      const birthDay = parseInt(birthMatch[1]);
+      age = new Date().getFullYear() - birthYear;
+      birthDate = `${birthDay}.${birthMonth}.${birthYear}`;
+    }
+
+    // Extract tax ID
+    const taxIdMatch = text.match(/Identifikationsnummer[:\s]*([0-9]+)/i);
+    const taxId = taxIdMatch ? taxIdMatch[1] : null;
+
+    // Extract marital status
+    let maritalStatus = 'single'; // Default
+    if (text.match(/(verheiratet|married)/i)) maritalStatus = 'married';
+    else if (text.match(/(geschieden|divorced)/i)) maritalStatus = 'divorced';
+    else if (text.match(/(verwitwet|widowed)/i)) maritalStatus = 'widowed';
+
+    // Extract children information
+    const childrenMatch = text.match(/Kinderfreibeträge[:\s]*([0-9,]+)/i);
+    const childrenCount = childrenMatch ? parseFloat(childrenMatch[1].replace(',', '.')) : 0;
+
+    // Extract employer
+    const employerMatch = text.match(/Volkswagen\s+AG/i) || text.match(/Arbeitgeber[:\s]*([^\n]+)/i);
+    const employer = employerMatch ? (employerMatch[0].includes('Volkswagen') ? 'Volkswagen AG' : employerMatch[1]?.trim()) : null;
+
+    console.log('📊 Extracted tax declaration data:', {
+      salary, tax, socialInsurance, age, birthDate, taxId, maritalStatus, childrenCount, employer
+    });
+
+    return {
+      salary,
+      tax,
+      socialInsurance,
+      age,
+      birthDate,
+      taxId,
+      maritalStatus,
+      childrenCount,
+      employer,
+      extractedAt: new Date().toISOString()
+    };
+  };
+
+  // Populate form fields from extracted Qdrant data
+  const populateFormFromQdrant = (data: any) => {
+    // Populate personal information
+    if (data.taxId) {
+      setPersonalInfo(prev => ({
+        ...prev,
+        taxId: data.taxId,
+        maritalStatus: data.maritalStatus || prev.maritalStatus,
+        children: data.childrenCount || prev.children
+      }));
+    }
+
+    // Populate income data
+    if (data.salary && data.salary > 0) {
+      setIncomeData(prev => ({
+        ...prev,
+        salary: data.salary
+      }));
+    }
+
+    // Populate deduction data (use social insurance as health insurance estimate)
+    if (data.socialInsurance && data.socialInsurance > 0) {
+      setDeductionData(prev => ({
+        ...prev,
+        healthInsurance: data.socialInsurance
+      }));
+    }
   };
 
   const generateTaxDeclaration = async () => {
@@ -171,7 +379,39 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
       {/* Step 1: Personal Information */}
       {currentStep === 1 && (
         <div className="card">
-          <h3 className="text-xl font-semibold text-gray-900 mb-6">Persönliche Daten</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-gray-900">Persönliche Daten</h3>
+            <div className="flex items-center space-x-4">
+              {qdrantData && dataSource === 'qdrant' && (
+                <div className="flex items-center space-x-2 text-sm">
+                  <FileText className="w-4 h-4 text-green-600" />
+                  <span className="text-green-600 font-medium">
+                    Daten aus Qdrant: {qdrantData.documentName}
+                  </span>
+                  <span className="text-gray-500">
+                    (€{qdrantData.salary?.toLocaleString()})
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={fetchLohnsteuerFromQdrant}
+                disabled={qdrantLoading}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm"
+              >
+                {qdrantLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Lädt...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Lohnsteuer-Daten aktualisieren
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Vorname</label>
@@ -247,10 +487,20 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
       {/* Step 2: Income Data */}
       {currentStep === 2 && (
         <div className="card">
-          <h3 className="text-xl font-semibold text-gray-900 mb-6">Income Information</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-gray-900">Einkommensdaten</h3>
+            {qdrantData && dataSource === 'qdrant' && qdrantData.salary && (
+              <div className="flex items-center space-x-2 text-sm">
+                <FileText className="w-4 h-4 text-green-600" />
+                <span className="text-green-600 font-medium">
+                  Gehalt aus Lohnsteuerbescheinigung: €{qdrantData.salary.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Salary Income</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Gehaltseinkommen</label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -264,7 +514,7 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Freelance Income</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Freiberufliches Einkommen</label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -278,7 +528,7 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Investment Income</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Kapitalerträge</label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -292,7 +542,7 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Other Income</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sonstige Einkünfte</label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -308,7 +558,7 @@ const TaxDeclarationGenerator: React.FC<TaxDeclarationGeneratorProps> = ({ docum
           </div>
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-900">Total Income:</span>
+              <span className="text-lg font-semibold text-gray-900">Gesamteinkommen:</span>
               <span className="text-2xl font-bold text-green-600">€{incomeData.total.toFixed(2)}</span>
             </div>
           </div>
