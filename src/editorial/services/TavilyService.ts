@@ -36,7 +36,8 @@ export class TavilyService {
 
   constructor() {
     // In production, get from environment variable
-    this.apiKey = process.env.REACT_APP_TAVILY_API_KEY || null;
+    // Try both REACT_APP_TAVILY_API_KEY (for client-side) and TAVILY_API_KEY (for server-side/Vercel)
+    this.apiKey = process.env.REACT_APP_TAVILY_API_KEY || process.env.TAVILY_API_KEY || null;
   }
 
   /**
@@ -155,8 +156,14 @@ export class TavilyService {
     let filteredResults = mockResults;
     if (request.include_domains && request.include_domains.length > 0) {
       filteredResults = mockResults.filter(result => {
-        const url = new URL(result.url);
-        return request.include_domains!.some(domain => url.hostname.includes(domain));
+        try {
+          const url = new URL(result.url);
+          return request.include_domains!.some(domain => 
+            url.hostname === domain || url.hostname.endsWith('.' + domain)
+          );
+        } catch (e) {
+          return false;
+        }
       });
     }
 
