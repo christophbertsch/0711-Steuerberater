@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, Play, CheckCircle, AlertCircle, Clock, FileText, Users, Target, Download } from 'lucide-react';
+import { Cpu, Play, CheckCircle, AlertCircle, Clock, FileText, Users, Target, Download, BookOpen } from 'lucide-react';
 import { agentManager, AgentExecutionContext, AgentExecutionResult } from '../agents/AgentManager';
 import { TAX_AGENT_REGISTRY } from '../agents/registry';
+import { EditorialSystem } from './EditorialSystem';
+import { RuleSpec, EditorialNote, UserStep } from '../editorial/types';
 
 // Core Types for Tax System
 interface TaxPosition {
@@ -55,6 +57,9 @@ const TaxOrchestrator: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<string>('');
   const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const [executionContext, setExecutionContext] = useState<AgentExecutionContext | null>(null);
+  const [activeTab, setActiveTab] = useState<'orchestrator' | 'editorial'>('orchestrator');
+  const [editorialRuleSpecs, setEditorialRuleSpecs] = useState<RuleSpec[]>([]);
+  const [, setEditorialContent] = useState<{ notes: EditorialNote[]; steps: UserStep[] }>({ notes: [], steps: [] });
 
   // Initialize Tax Orchestrator
   const initializeOrchestrator = async () => {
@@ -273,16 +278,76 @@ const TaxOrchestrator: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="flex items-center justify-between mb-6">
+      {/* Header with Tab Navigation */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
+        <div className="flex items-center gap-3 mb-4">
+          <Cpu className="w-8 h-8" />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              🧠 Tax AI Orchestrator
-            </h2>
-            <p className="text-gray-600 mt-1">
-              Production German Tax Declaration System
-            </p>
+            <h1 className="text-3xl font-bold">Tax AI Orchestrator</h1>
+            <p className="text-blue-100">Production German Tax Declaration System with Editorial Pipeline</p>
           </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-4 mt-4">
+          <button
+            onClick={() => setActiveTab('orchestrator')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'orchestrator'
+                ? 'bg-white text-blue-600'
+                : 'bg-blue-500 text-white hover:bg-blue-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4" />
+              Declaration Agents
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('editorial')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'editorial'
+                ? 'bg-white text-blue-600'
+                : 'bg-blue-500 text-white hover:bg-blue-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Editorial System
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'editorial' ? (
+        <EditorialSystem
+          onRuleSpecsGenerated={(rulespecs) => {
+            setEditorialRuleSpecs(rulespecs);
+            console.log(`📋 Received ${rulespecs.length} rule specs from editorial system`);
+          }}
+          onEditorialContentGenerated={(notes, steps) => {
+            setEditorialContent({ notes, steps });
+            console.log(`📝 Received ${notes.length} editorial notes and ${steps.length} user steps`);
+          }}
+        />
+      ) : (
+        <>
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  🧠 Declaration Agent System
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  Production German Tax Declaration Agents
+                  {editorialRuleSpecs.length > 0 && (
+                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                      {editorialRuleSpecs.length} Editorial Rules Available
+                    </span>
+                  )}
+                </p>
+              </div>
           <div className="flex space-x-3">
             <button
               onClick={executeOrchestration}
@@ -536,6 +601,8 @@ const TaxOrchestrator: React.FC = () => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };
