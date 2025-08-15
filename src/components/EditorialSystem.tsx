@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Search, BookOpen, Zap, CheckCircle, AlertCircle, Clock, Download, Database, FileText, Users } from 'lucide-react';
 import { EditorialManager, EditorialIngestRequest, EditorialIngestResult } from '../editorial/EditorialManager';
 import { RuleSpec, EditorialNote, UserStep } from '../editorial/types';
+import { BulkEditorialIngestion } from './BulkEditorialIngestion';
 
 interface EditorialSystemProps {
   onRuleSpecsGenerated?: (rulespecs: RuleSpec[]) => void;
@@ -18,6 +19,7 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
   onEditorialContentGenerated
 }) => {
   const [editorialManager] = useState(() => new EditorialManager());
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [customQueries, setCustomQueries] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -102,6 +104,36 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
           <p className="text-gray-600">Automatische Ingestion und Verarbeitung von Steuerrecht</p>
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveTab('single')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'single'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Search className="w-4 h-4 inline mr-2" />
+          Einzelthema Ingestion
+        </button>
+        <button
+          onClick={() => setActiveTab('bulk')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'bulk'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Database className="w-4 h-4 inline mr-2" />
+          Bulk Ingestion
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'single' && (
+        <div>
 
       {/* Topic Selection */}
       <div className="mb-6">
@@ -319,6 +351,13 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
             </button>
           </div>
         </div>
+      )}
+        </div>
+      )}
+
+      {/* Bulk Ingestion Tab */}
+      {activeTab === 'bulk' && (
+        <BulkEditorialIngestion />
       )}
     </div>
   );

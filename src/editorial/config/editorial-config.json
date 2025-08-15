@@ -1,0 +1,197 @@
+{
+  "version": "1.0",
+  "jurisdiction": "DE",
+  "default_year": 2024,
+  "scheduler": {
+    "global_rate_limit_rps": 1.5,
+    "max_parallel_domains": 3,
+    "default_recrawl_days": 14,
+    "high_priority_recrawl_days": 3,
+    "pdf_ocr": "on_demand"
+  },
+  "evidence_policy": {
+    "allow_secondary": false,
+    "require_primary_citation": true,
+    "min_citation_coverage": 0.95,
+    "store_headers": ["ETag", "Last-Modified", "Content-Type", "Content-Length"]
+  },
+  "whitelist_sources": [
+    { "domain": "www.gesetze-im-internet.de", "type": "LAW", "priority": 10, "sitemaps": ["https://www.gesetze-im-internet.de/sitemap.xml"] },
+    { "domain": "www.bundesfinanzministerium.de", "type": "BMF", "priority": 10, "sitemaps": ["https://www.bundesfinanzministerium.de/SiteGlobals/Functions/Sitemap/Sitemap-DE.xml"] },
+    { "domain": "www.bundesfinanzhof.de", "type": "RULING", "priority": 9, "sitemaps": [] },
+    { "domain": "www.bgbl.de", "type": "GAZETTE", "priority": 9, "sitemaps": [] },
+    { "domain": "www.elster.de", "type": "FORM/TECH", "priority": 9, "sitemaps": [] },
+    { "domain": "www.bzst.de", "type": "ADMIN", "priority": 8, "sitemaps": [] },
+    { "domain": "www.bundesrat.de", "type": "PARLIAMENT", "priority": 7, "sitemaps": [] },
+    { "domain": "www.bundestag.de", "type": "PARLIAMENT", "priority": 7, "sitemaps": [] },
+    { "domain": "www.ofd.niedersachsen.de", "type": "STATE_FINMIN", "priority": 6, "sitemaps": [] },
+    { "domain": "www.finanzamt.bayern.de", "type": "STATE_FINMIN", "priority": 6, "sitemaps": [] },
+    { "domain": "www.justiz.bund.de", "type": "JUSTICE", "priority": 6, "sitemaps": [] },
+    { "domain": "eur-lex.europa.eu", "type": "EU_LAW", "priority": 7, "sitemaps": [] }
+  ],
+  "blacklist_domains": [
+    "wikipedia.org",
+    "reddit.com",
+    "anwalt.de",
+    "kanzlei-blogs.*",
+    "kommerzielle-news-portale.*",
+    "steuertipps-blogs.*"
+  ],
+  "parse_hints": {
+    "html": { "prefer": ["print", "singlepage"], "strip": ["nav", "footer", "cookie", "js"], "keep_tables": true },
+    "pdf": { "ocr_threshold_dpi": 300, "detect_layout": true, "extract_tables": true, "keep_page_coords": true },
+    "chunking": {
+      "LAW": { "by": ["§", "Abs.", "Satz", "Nr."], "max_chars": 2000 },
+      "BMF": { "by": ["Randziffer", "Ziffer", "Abschnitt"], "max_chars": 1800 },
+      "RULING": { "by": ["Leitsatz", "Gründe", "Tatbestand", "Rn."], "max_chars": 1800 },
+      "FORM": { "by": ["Formularteil", "Zeile", "KZ"], "max_chars": 1600 }
+    }
+  },
+  "link_rules": [
+    { "from": "BMF", "to": "LAW", "relation": "INTERPRETS", "pattern": "EStG|UStG|KStG|GewStG|AO|EStDV|UStDV|BewG" },
+    { "from": "RULING", "to": "LAW", "relation": "APPLIES", "pattern": "§\\s*\\d+\\s*[a-zA-Z]*\\s*(EStG|UStG|KStG|GewStG|AO|BewG)" },
+    { "from": "FORM", "to": "LAW", "relation": "MAPS_TO", "pattern": "Kennziffer|Zeile|Anlage" },
+    { "from": "EU_LAW", "to": "UStG", "relation": "HARMONIZES", "pattern": "MwSt-Systemrichtlinie|Richtlinie 2006/112/EG" }
+  ],
+  "topics": [
+    {
+      "id": "ESt_Core",
+      "title": "Einkommensteuer – Grundlagen, Tarife, Veranlagung",
+      "priority": "high",
+      "update_cadence_days": 14,
+      "queries": {
+        "LAW": [
+          "Einkommensteuergesetz 2024",
+          "EStG § 2 2024",
+          "EStG § 32a Tarif 2024"
+        ],
+        "BMF": [
+          "BMF-Schreiben Einkommensteuer 2024",
+          "Anwendungserlass Einkommensteuer 2024"
+        ],
+        "RULING": [
+          "Einkommensteuer Leitsatz 2024",
+          "EStG § 32a Urteil 2024"
+        ]
+      },
+      "extract": ["Tarifformeln", "Freibetraege", "Veranlagungsarten", "Begriffsdefinitionen (§2 EStG)"],
+      "form_map_targets": ["ESt1A"]
+    },
+    {
+      "id": "ESt_N_Income",
+      "title": "Nichtselbständige Arbeit – Anlage N",
+      "priority": "high",
+      "update_cadence_days": 10,
+      "queries": {
+        "LAW": [
+          "EStG § 19 2024",
+          "EStG § 9 Werbungskosten 2024"
+        ],
+        "BMF": [
+          "BMF-Schreiben Werbungskosten 2024",
+          "BMF Reisekosten Verpflegungsmehraufwand 2024"
+        ],
+        "RULING": [
+          "doppelte Haushaltsführung Urteil 2024",
+          "Entfernungspauschale Urteil 2024"
+        ],
+        "FORM": [
+          "Anlage N Erläuterungen 2024",
+          "ESt1A Kennziffern Anlage N 2024"
+        ]
+      },
+      "extract": ["Bruttoarbeitslohn", "Lohnsteuer", "Soli", "Kirchensteuer", "Werbungskostenkatalog", "Pauschbetrag", "Reisekosten", "Doppelte HH", "Homeoffice/Arbeitszimmer"],
+      "form_map_targets": ["Anlage N", "ESt1A"]
+    },
+    {
+      "id": "ESt_Vorsorge",
+      "title": "Vorsorgeaufwendungen – §10 EStG",
+      "priority": "high",
+      "update_cadence_days": 14,
+      "queries": {
+        "LAW": [
+          "EStG § 10 2024",
+          "EStG § 10 Abs 1 Nr 3a 2024"
+        ],
+        "BMF": [
+          "BMF Vorsorgeaufwendungen 2024"
+        ],
+        "FORM": [
+          "Anlage Vorsorgeaufwand Erläuterung 2024"
+        ]
+      },
+      "extract": ["Höchstbeträge KV/PV/RV/AV", "Abzugsfähigkeit", "Sonderfälle", "Berechnungslogik"],
+      "form_map_targets": ["Anlage Vorsorgeaufwand"]
+    },
+    {
+      "id": "ESt_Sonderausgaben",
+      "title": "Sonderausgaben – Spenden, Kirchensteuer, Ausbildung",
+      "priority": "high",
+      "update_cadence_days": 20,
+      "queries": {
+        "LAW": [
+          "EStG § 10b 2024",
+          "EStG § 10 Abs 2024"
+        ],
+        "BMF": [
+          "BMF Schreiben Spenden §10b 2024"
+        ],
+        "RULING": [
+          "Spendenabzug Urteil 2024"
+        ],
+        "FORM": [
+          "Anlage Sonderausgaben Erläuterungen 2024"
+        ]
+      },
+      "extract": ["20%-Grenze", "Zuwendungsnachweis", "Kirchensteuer", "Sonderfälle Sachspenden"],
+      "form_map_targets": ["Sonderausgaben"]
+    },
+    {
+      "id": "ESt_KAP",
+      "title": "Kapitalvermögen – Anlage KAP",
+      "priority": "high",
+      "update_cadence_days": 20,
+      "queries": {
+        "LAW": [
+          "EStG § 20 2024"
+        ],
+        "BMF": [
+          "BMF Kapitalerträge 2024"
+        ],
+        "RULING": [
+          "Abgeltungsteuer Urteil 2024"
+        ],
+        "FORM": [
+          "Anlage KAP Erläuterungen 2024"
+        ]
+      },
+      "extract": ["Abgeltungsteuer", "Günstigerprüfung", "Kirchensteuer auf Kapitalerträge"],
+      "form_map_targets": ["Anlage KAP"]
+    },
+    {
+      "id": "USt_Core",
+      "title": "Umsatzsteuer – Grundsystem & Voranmeldung",
+      "priority": "high",
+      "update_cadence_days": 10,
+      "queries": {
+        "LAW": [
+          "Umsatzsteuergesetz 2024",
+          "2006/112/EG Mehrwertsteuer 2024"
+        ],
+        "BMF": [
+          "USt Anwendungserlass 2024",
+          "BMF Schreiben Umsatzsteuer 2024"
+        ],
+        "FORM": [
+          "UStVA Kennziffern 2024",
+          "USt-2A Jahreserklärung Anleitung 2024"
+        ],
+        "RULING": [
+          "UStG § 15 Vorsteuer Urteil 2024"
+        ]
+      },
+      "extract": ["Steuerbarkeit", "Steuersätze", "Vorsteuerabzug", "Reverse Charge", "IG-Lieferungen", "Kleinunternehmer §19"],
+      "form_map_targets": ["UStVA", "USt-2A", "ZM", "OSS"]
+    }
+  ]
+}
