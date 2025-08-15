@@ -3083,10 +3083,13 @@ initApp().catch(error => {
 
 // Start server locally, export for Vercel
 if (!process.env.VERCEL) {
-  const PORT = process.env.PORT || 56534;
+  const PORT = process.env.PORT || 55934;
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Tax & Law AI Expert server running on http://localhost:${PORT}`);
-    console.log('Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables');
+    console.log(`🚀 Steuerberater Mega Microagent Platform running on http://localhost:${PORT}`);
+    console.log('📊 Qdrant Vector DB: http://34.40.104.64:6333/dashboard#/collections/steuerberater');
+    console.log('🗄️  PostgreSQL DB: 34.107.63.251:5432');
+    console.log('📄 PDF2Q Service: https://pdf2q.onrender.com');
+    console.log('⚙️  Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables');
   });
 }
 

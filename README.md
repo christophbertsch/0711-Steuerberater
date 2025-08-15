@@ -1,35 +1,42 @@
-# Tax & Law AI Expert 🏛️🤖
+# Steuerberater Mega Microagent Platform 🏛️🤖⚡
 
-A comprehensive AI-powered application for tax document analysis, legal opinion generation, and automated tax declaration creation with deep research capabilities for 2024 German tax law changes.
+An editorial-based, tax law/regulation mega microagent platform with comprehensive AI-powered document analysis, legal opinion generation, and automated tax declaration creation. Built with production-ready infrastructure including Qdrant vector database, PostgreSQL, and PDF2Q service integration.
 
 ## 🌟 Features
 
-### 📄 Document Upload & Analysis
+### 🏗️ **Production Infrastructure**
+- **Qdrant Vector Database**: Semantic document search and storage at `http://34.40.104.64:6333`
+- **PostgreSQL Database**: Structured data storage at `34.107.63.251:5432`
+- **PDF2Q Service**: Reliable German text extraction at `https://pdf2q.onrender.com`
+- **Microagent Architecture**: Specialized agents for different tax domains
+
+### 📄 **Advanced Document Processing**
 - **Multi-format Support**: PDF, images, Word documents, XML files
-- **Intelligent Classification**: Automatic document type detection
-- **OCR Capabilities**: Text extraction from images and scanned documents
-- **Real-time Processing**: Live upload progress and instant feedback
+- **German Text Optimization**: PDF2Q service for accurate German character encoding
+- **Intelligent Classification**: AI-powered document type detection
+- **OCR Capabilities**: Tesseract.js for scanned document processing
+- **Vector Storage**: Automatic embedding generation and Qdrant storage
 
-### 🧠 AI-Powered Expert Opinions
-- **Tax Relevance Assessment**: High/Medium/Low/None classification
-- **Legal Considerations**: Comprehensive legal analysis
-- **Deduction Identification**: Automatic detection of potential tax deductions
-- **Risk Assessment**: Warnings and compliance alerts
-- **Confidence Scoring**: AI confidence levels for all analyses
+### 🤖 **Editorial Microagent System**
+- **Specialized Tax Agents**: ESt, USt, KSt, GewSt declaration agents
+- **Editorial Content Management**: Bulk ingestion of tax law content
+- **Rule Specification Extraction**: Automated legal rule parsing
+- **Tavily Integration**: Real-time tax law research and updates
+- **Agent Orchestration**: Coordinated multi-agent workflows
 
-### 🔍 Deep Tax Research 2024
-- **Tavily Integration**: Real-time search of German tax law changes
-- **Comprehensive Coverage**: Latest 2024 tax reforms and updates
-- **Authoritative Sources**: Official government and legal websites
-- **Categorized Results**: Organized by impact level and category
-- **Historical Tracking**: Changes over time analysis
+### 🧠 **AI-Powered Analysis**
+- **Expert Opinion Generation**: GPT-4 powered tax analysis
+- **Semantic Search**: Vector-based document similarity matching
+- **Tax Relevance Assessment**: Automated classification and scoring
+- **Deduction Identification**: Smart detection of tax-deductible items
+- **Risk Assessment**: Compliance warnings and recommendations
 
-### 📊 Tax Declaration Generator
-- **Step-by-Step Wizard**: Guided tax declaration process
-- **Auto-Population**: Data extraction from analyzed documents
+### 📊 **Tax Declaration Automation**
+- **Form Auto-Population**: Data extraction from analyzed documents
+- **Multi-Form Support**: ESt, USt-VA, KSt, GewSt declarations
 - **Real-time Calculations**: German tax calculation engine
 - **PDF Generation**: Professional tax declaration documents
-- **Validation**: Built-in compliance checking
+- **Validation Engine**: Built-in compliance checking
 
 ### 🎯 Document Types Supported
 
@@ -51,6 +58,10 @@ A comprehensive AI-powered application for tax document analysis, legal opinion 
 ### Prerequisites
 - Node.js 18+ 
 - npm or yarn
+- Access to production infrastructure:
+  - PostgreSQL: `34.107.63.251:5432` (credentials provided)
+  - Qdrant: `http://34.40.104.64:6333`
+  - PDF2Q: `https://pdf2q.onrender.com`
 - OpenAI API key (for AI analysis)
 - Tavily API key (for tax research)
 
@@ -58,36 +69,35 @@ A comprehensive AI-powered application for tax document analysis, legal opinion 
 
 1. **Clone and setup**:
 ```bash
-cd /workspace/tax-law-ai-app
+git clone https://github.com/christophbertsch/0711-Steuerberater.git
+cd 0711-Steuerberater
+git checkout stable-mega-microagent-platform
 npm install
 ```
 
-2. **Set environment variables**:
+2. **Production setup**:
 ```bash
-export OPENAI_API_KEY="your-openai-api-key"
-export TAVILY_API_KEY="your-tavily-api-key"
+# Run automated setup (creates .env, tests connections)
+npm run setup
+
+# Or manually create .env from template
+cp .env.example .env
+# Edit .env with your API keys
 ```
 
-3. **Start the application**:
+3. **Start the platform**:
 ```bash
-./start.sh
-```
-
-Or manually:
-```bash
-# Build frontend
-npm run build
-
 # Start backend server
 npm run server &
 
-# Start frontend development server
+# Start frontend development server  
 npm run dev
 ```
 
 ### Access Points
-- **Frontend**: http://localhost:54628
-- **Backend API**: http://localhost:56534/api
+- **Frontend**: http://localhost:54940
+- **Backend API**: http://localhost:55934/api
+- **Qdrant Dashboard**: http://34.40.104.64:6333/dashboard#/collections/steuerberater
 
 ## 🧪 Testing
 

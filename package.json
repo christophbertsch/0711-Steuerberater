@@ -1,15 +1,17 @@
 {
-  "name": "tax-law-ai-app",
-  "version": "1.0.0",
-  "description": "AI-powered tax and law document analysis with expert opinions and tax declaration generation",
+  "name": "steuerberater-mega-microagent-platform",
+  "version": "2.0.0",
+  "description": "Editorial-based Tax Law/Regulation Mega Microagent Platform with Qdrant, PostgreSQL, and PDF2Q integration",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 54628",
+    "dev": "vite --host 0.0.0.0 --port 54940",
     "build": "tsc && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 54628",
+    "preview": "vite preview --host 0.0.0.0 --port 54940",
     "server": "node api/index.js",
     "start": "node api/index.js",
-    "vercel-build": "npm run build"
+    "vercel-build": "npm run build",
+    "test": "node test-app.js",
+    "setup": "node setup-production.js"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.8.2",
