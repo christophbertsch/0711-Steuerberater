@@ -38,6 +38,7 @@ const SpecializedAgents: React.FC = () => {
   const [qdrantLoading, setQdrantLoading] = useState(false);
   const [lohnsteuerData, setLohnsteuerData] = useState<any>(null);
   const [dataSource, setDataSource] = useState<'manual' | 'document'>('manual');
+  const [comprehensiveData, setComprehensiveData] = useState<any>(null);
 
   // Query Qdrant for Lohnsteuer documents and extract data
   const fetchLohnsteuerFromQdrant = async () => {
@@ -97,6 +98,13 @@ const SpecializedAgents: React.FC = () => {
           
           if (hasUsefulData) {
             setLohnsteuerData({
+              ...extractedData,
+              documentName: lohnsteuerDoc.filename,
+              qdrantId: lohnsteuerDoc.id
+            });
+            
+            // Store comprehensive data for detailed display
+            setComprehensiveData({
               ...extractedData,
               documentName: lohnsteuerDoc.filename,
               qdrantId: lohnsteuerDoc.id
@@ -238,31 +246,99 @@ const SpecializedAgents: React.FC = () => {
     const tax = extractNumber(taxPatterns, 'Tax');
     const socialInsurance = extractNumber(socialInsurancePatterns, 'Social Insurance');
 
+    // Extract additional financial data
+    const solidarityTax = extractNumber([
+      /5\.\s+Einbehaltener\s+Solidaritätszuschlag[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /Solidaritätszuschlag[:\s]*([0-9.,]+)/i
+    ], 'Solidarity Tax');
+
+    const churchTax = extractNumber([
+      /6\.\s+Einbehaltene\s+Kirchensteuer[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /Kirchensteuer[:\s]*([0-9.,]+)/i
+    ], 'Church Tax');
+
+    // Extract employer information
+    const employerMatch = text.match(/Arbeitgeber[:\s]*([^\n]+)/i) || 
+                         text.match(/Volkswagen\s+AG/i);
+    const employer = employerMatch ? employerMatch[0].trim() : null;
+
+    // Extract tax ID and personal number
+    const taxIdMatch = text.match(/Identifikationsnummer[:\s]*([0-9]+)/i);
+    const taxId = taxIdMatch ? taxIdMatch[1] : null;
+
+    const personalNumberMatch = text.match(/Personalnummer[:\s]*([0-9]+)/i);
+    const personalNumber = personalNumberMatch ? personalNumberMatch[1] : null;
+
+    // Extract tax period
+    const taxPeriodMatch = text.match(/Bescheinigungszeitraum[:\s]*([0-9.]+)\s*-\s*([0-9.]+)/i);
+    const taxPeriod = taxPeriodMatch ? `${taxPeriodMatch[1]} - ${taxPeriodMatch[2]}` : null;
+
     // Extract age from birth date
     const birthMatch = text.match(/geboren[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i) ||
                       text.match(/Geburtsdatum[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
     let age = null;
+    let birthDate = null;
     if (birthMatch) {
       const birthYear = parseInt(birthMatch[3]);
+      const birthMonth = parseInt(birthMatch[2]);
+      const birthDay = parseInt(birthMatch[1]);
       age = new Date().getFullYear() - birthYear;
+      birthDate = `${birthDay}.${birthMonth}.${birthYear}`;
     }
 
-    // Extract marital status
+    // Extract marital status and tax class
     let maritalStatus = null;
+    let taxClass = null;
     if (text.match(/(verheiratet|married)/i)) maritalStatus = 'married';
     else if (text.match(/(ledig|single)/i)) maritalStatus = 'single';
     else if (text.match(/(geschieden|divorced)/i)) maritalStatus = 'divorced';
 
-    // Check for children
-    const hasChildren = text.match(/(kinderfreibetrag|kindergeld|kinder[:\s]*[1-9])/i) !== null;
+    // Extract tax class from document
+    const taxClassMatch = text.match(/Steuerklasse[:\s]*([1-6])/i);
+    if (taxClassMatch) {
+      taxClass = parseInt(taxClassMatch[1]);
+    }
+
+    // Extract children information
+    const childrenMatch = text.match(/Kinderfreibeträge[:\s]*([0-9,]+)/i);
+    const childrenCount = childrenMatch ? parseFloat(childrenMatch[1].replace(',', '.')) : 0;
+    const hasChildren = childrenCount > 0 || text.match(/(kinderfreibetrag|kindergeld|kinder[:\s]*[1-9])/i) !== null;
+
+    // Extract church tax information
+    const churchTaxMark = text.match(/Kirchensteuermerkmale[:\s]*([^\s]+)/i);
+    const churchTaxMarker = churchTaxMark ? churchTaxMark[1] : null;
+
+    console.log('📊 Comprehensive extraction results:', {
+      salary, tax, socialInsurance, solidarityTax, churchTax,
+      employer, taxId, personalNumber, taxPeriod, age, birthDate,
+      maritalStatus, taxClass, childrenCount, hasChildren, churchTaxMarker
+    });
 
     return {
+      // Financial data
       salary,
       tax,
       socialInsurance,
+      solidarityTax,
+      churchTax,
+      
+      // Personal data
       age,
+      birthDate,
       maritalStatus,
+      taxClass,
       hasChildren,
+      childrenCount,
+      
+      // Employment data
+      employer,
+      personalNumber,
+      
+      // Tax administration data
+      taxId,
+      taxPeriod,
+      churchTaxMarker,
+      
       extractedAt: new Date().toISOString()
     };
   };
@@ -463,6 +539,132 @@ const SpecializedAgents: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Comprehensive Tax Document Data Display */}
+      {comprehensiveData && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <FileText className="w-5 h-5 mr-2 text-blue-600" />
+            Vollständige Dokumentendaten
+          </h2>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Financial Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900 border-b pb-2">💰 Finanzielle Daten</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="text-sm text-green-600 font-medium">Bruttoarbeitslohn</div>
+                  <div className="text-lg font-bold text-green-800">
+                    €{comprehensiveData.salary?.toLocaleString() || 'N/A'}
+                  </div>
+                </div>
+                
+                <div className="bg-red-50 p-3 rounded-lg">
+                  <div className="text-sm text-red-600 font-medium">Lohnsteuer</div>
+                  <div className="text-lg font-bold text-red-800">
+                    €{comprehensiveData.tax?.toLocaleString() || 'N/A'}
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="text-sm text-blue-600 font-medium">Sozialversicherung</div>
+                  <div className="text-lg font-bold text-blue-800">
+                    €{comprehensiveData.socialInsurance?.toLocaleString() || 'N/A'}
+                  </div>
+                </div>
+                
+                <div className="bg-yellow-50 p-3 rounded-lg">
+                  <div className="text-sm text-yellow-600 font-medium">Solidaritätszuschlag</div>
+                  <div className="text-lg font-bold text-yellow-800">
+                    €{comprehensiveData.solidarityTax?.toLocaleString() || 'N/A'}
+                  </div>
+                </div>
+                
+                {comprehensiveData.churchTax > 0 && (
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <div className="text-sm text-purple-600 font-medium">Kirchensteuer</div>
+                    <div className="text-lg font-bold text-purple-800">
+                      €{comprehensiveData.churchTax?.toLocaleString() || 'N/A'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Personal Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900 border-b pb-2">👤 Persönliche Daten</h3>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Alter:</span>
+                  <span className="font-medium">{comprehensiveData.age || 'N/A'}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Geburtsdatum:</span>
+                  <span className="font-medium">{comprehensiveData.birthDate || 'N/A'}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Familienstand:</span>
+                  <span className="font-medium capitalize">{comprehensiveData.maritalStatus || 'N/A'}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Steuerklasse:</span>
+                  <span className="font-medium">{comprehensiveData.taxClass || 'N/A'}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Kinder:</span>
+                  <span className="font-medium">
+                    {comprehensiveData.hasChildren ? `Ja (${comprehensiveData.childrenCount || 0})` : 'Nein'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Arbeitgeber:</span>
+                  <span className="font-medium text-sm">{comprehensiveData.employer || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Administrative Information */}
+          <div className="mt-6 pt-4 border-t">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">📋 Verwaltungsdaten</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Steuer-ID:</span>
+                <div className="font-mono text-xs">{comprehensiveData.taxId || 'N/A'}</div>
+              </div>
+              <div>
+                <span className="text-gray-600">Personalnummer:</span>
+                <div className="font-mono text-xs">{comprehensiveData.personalNumber || 'N/A'}</div>
+              </div>
+              <div>
+                <span className="text-gray-600">Steuerzeitraum:</span>
+                <div className="font-medium text-xs">{comprehensiveData.taxPeriod || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Document Information */}
+          <div className="mt-4 pt-4 border-t bg-gray-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <div>
+                <span className="font-medium">Dokument:</span> {comprehensiveData.documentName}
+              </div>
+              <div>
+                <span className="font-medium">Extrahiert am:</span> {new Date(comprehensiveData.extractedAt).toLocaleString('de-DE')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Refresh Qdrant Data Button */}
       <div className="text-center mb-4">
