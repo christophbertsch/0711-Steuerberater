@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, Calculator, Search, Brain, FileCheck, Users, Database, Receipt } from 'lucide-react';
+import { Upload, Calculator, Search, Brain, FileCheck, Users, Database, Receipt, BookOpen, Cpu } from 'lucide-react';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentAnalysis from './components/DocumentAnalysis';
 import TaxDeclarationGenerator from './components/TaxDeclarationGenerator';
@@ -7,6 +7,8 @@ import TaxResearch from './components/TaxResearch';
 import SpecializedAgents from './components/SpecializedAgents';
 import QdrantManager from './components/QdrantManager';
 import InvoiceAnalyzer from './components/InvoiceAnalyzer';
+import TaxOrchestrator from './components/TaxOrchestrator';
+import TaxKnowledgeBase from './components/TaxKnowledgeBase';
 import { Document } from './types';
 import { documentService } from './services/documentService';
 
@@ -35,6 +37,8 @@ function App() {
   const tabs = [
     { id: 'upload', label: 'Dokumente hochladen', icon: Upload },
     { id: 'analysis', label: 'KI-Analyse', icon: Brain },
+    { id: 'orchestrator', label: 'Tax AI Orchestrator', icon: Cpu },
+    { id: 'knowledge', label: 'Tax Knowledge Base', icon: BookOpen },
     { id: 'research', label: 'Steuerforschung 2024', icon: Search },
     { id: 'agents', label: 'Spezialisierte Agenten', icon: Users },
     { id: 'invoices', label: 'Rechnungsanalyse', icon: Receipt },
@@ -94,6 +98,14 @@ function App() {
         
         {activeTab === 'analysis' && (
           <DocumentAnalysis documents={documents} />
+        )}
+        
+        {activeTab === 'orchestrator' && (
+          <TaxOrchestrator />
+        )}
+        
+        {activeTab === 'knowledge' && (
+          <TaxKnowledgeBase />
         )}
         
         {activeTab === 'research' && (

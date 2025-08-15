@@ -2324,6 +2324,38 @@ function calculateGermanTaxRate(income) {
   return 0.45;
 }
 
+function calculateGermanTax(income, deductions = 0, filing_type = 'single') {
+  // Calculate zu versteuerndes Einkommen
+  const zvE = Math.max(0, income - deductions);
+
+  // 2024 German income tax calculation
+  let einkommensteuer = 0;
+  if (zvE > 11604) {
+    if (zvE <= 17005) {
+      einkommensteuer = Math.round((zvE - 11604) * 0.14);
+    } else if (zvE <= 66760) {
+      einkommensteuer = Math.round(1190.04 + (zvE - 17005) * 0.24);
+    } else if (zvE <= 277825) {
+      einkommensteuer = Math.round(13141.24 + (zvE - 66760) * 0.42);
+    } else {
+      einkommensteuer = Math.round(101462.77 + (zvE - 277825) * 0.45);
+    }
+  }
+
+  const solidaritaetszuschlag = Math.round(einkommensteuer * 0.055);
+  const kirchensteuer = filing_type.includes('church') ? Math.round(einkommensteuer * 0.08) : 0;
+
+  return {
+    zu_versteuerndes_einkommen: zvE,
+    einkommensteuer,
+    solidaritaetszuschlag,
+    kirchensteuer,
+    total_tax: einkommensteuer + solidaritaetszuschlag + kirchensteuer,
+    effective_rate: zvE > 0 ? ((einkommensteuer + solidaritaetszuschlag + kirchensteuer) / zvE * 100) : 0,
+    marginal_rate: zvE > 277825 ? 45 : zvE > 66760 ? 42 : zvE > 17005 ? 24 : zvE > 11604 ? 14 : 0
+  };
+}
+
 // Don't serve static files in serverless function - handled by Vercel routing
 
 // Health check endpoint
@@ -2443,6 +2475,341 @@ app.delete('/api/cleanup', async (req, res) => {
     });
   }
 });
+
+// ============================================================================
+// TAX AI SYSTEM ENDPOINTS
+// ============================================================================
+
+// In-memory storage for tax knowledge (in production, use proper database)
+let taxKnowledgeBase = [];
+let taxRules = [];
+let taxCases = [];
+let learningMetrics = {
+  total_cases: 0,
+  successful_cases: 0,
+  rules_learned: 0,
+  accuracy_rate: 0,
+  improvement_rate: 0
+};
+
+// Initialize core tax knowledge
+const initializeTaxKnowledge = () => {
+  taxKnowledgeBase = [
+    {
+      id: 'wk_pauschbetrag_2024',
+      topic: 'Werbungskosten-Pauschbetrag',
+      rule: 'IF werbungskosten_einzelnachweis <= 1230 THEN use_pauschbetrag(1230)',
+      legal_basis: ['EStG §9a Nr.1'],
+      examples: [
+        'Angestellter mit €800 Werbungskosten → Pauschbetrag €1.230',
+        'Angestellter mit €1.500 Werbungskosten → Einzelnachweis €1.500'
+      ],
+      confidence: 0.98,
+      learned_from_cases: 0,
+      last_updated: new Date().toISOString(),
+      success_rate: 1.0,
+      category: 'deductions'
+    },
+    {
+      id: 'computer_werbungskosten',
+      topic: 'Computer als Werbungskosten',
+      rule: 'IF document_type=invoice AND contains(computer|laptop|software) AND employment_status=employee AND business_use>=50% THEN classify_as_werbungskosten',
+      legal_basis: ['EStG §9 Abs.1 S.1', 'BFH VI R 36/17'],
+      examples: [
+        'Laptop für €1.200 bei 100% beruflicher Nutzung → €1.200 Werbungskosten',
+        'Computer für €800 bei 50% beruflicher Nutzung → €400 Werbungskosten'
+      ],
+      confidence: 0.85,
+      learned_from_cases: 0,
+      last_updated: new Date().toISOString(),
+      success_rate: 0.9,
+      category: 'deductions'
+    }
+  ];
+
+  taxRules = [
+    {
+      id: 'rule_wk_pauschbetrag',
+      rule_type: 'calculation',
+      condition: 'werbungskosten < 1230',
+      action: 'use_pauschbetrag(1230)',
+      confidence: 0.95,
+      learned_from: ['EStG §9a'],
+      last_updated: new Date().toISOString(),
+      success_rate: 1.0
+    }
+  ];
+
+  console.log('📚 Initialized tax knowledge base with core rules');
+};
+
+// Tax Knowledge Base Endpoints
+app.get('/api/tax/knowledge', (req, res) => {
+  try {
+    const { category, search } = req.query;
+    let filtered = [...taxKnowledgeBase];
+
+    if (category && category !== 'all') {
+      filtered = filtered.filter(k => k.category === category);
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(k => 
+        k.topic.toLowerCase().includes(searchLower) ||
+        k.rule.toLowerCase().includes(searchLower) ||
+        k.legal_basis.some(basis => basis.toLowerCase().includes(searchLower))
+      );
+    }
+
+    res.json(filtered.sort((a, b) => b.confidence - a.confidence));
+  } catch (error) {
+    console.error('❌ Error fetching tax knowledge:', error);
+    res.status(500).json({ error: 'Failed to fetch tax knowledge' });
+  }
+});
+
+app.post('/api/tax/knowledge', (req, res) => {
+  try {
+    const { knowledge } = req.body;
+    
+    if (Array.isArray(knowledge)) {
+      taxKnowledgeBase.push(...knowledge);
+    } else {
+      taxKnowledgeBase.push(knowledge);
+    }
+
+    console.log(`📚 Added ${Array.isArray(knowledge) ? knowledge.length : 1} knowledge entries`);
+    res.json({ success: true, total: taxKnowledgeBase.length });
+  } catch (error) {
+    console.error('❌ Error storing tax knowledge:', error);
+    res.status(500).json({ error: 'Failed to store tax knowledge' });
+  }
+});
+
+// Tax Rules Endpoints
+app.get('/api/tax/rules', (req, res) => {
+  try {
+    res.json(taxRules);
+  } catch (error) {
+    console.error('❌ Error fetching tax rules:', error);
+    res.status(500).json({ error: 'Failed to fetch tax rules' });
+  }
+});
+
+app.post('/api/tax/rules', (req, res) => {
+  try {
+    const { rules } = req.body;
+    
+    if (Array.isArray(rules)) {
+      taxRules.push(...rules);
+    } else {
+      taxRules.push(rules);
+    }
+
+    learningMetrics.rules_learned = taxRules.length;
+    console.log(`🧠 Added ${Array.isArray(rules) ? rules.length : 1} tax rules`);
+    res.json({ success: true, total: taxRules.length });
+  } catch (error) {
+    console.error('❌ Error storing tax rules:', error);
+    res.status(500).json({ error: 'Failed to store tax rules' });
+  }
+});
+
+// Tax Cases Endpoints
+app.get('/api/tax/cases', (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+    const recentCases = taxCases
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, parseInt(limit));
+    
+    res.json(recentCases);
+  } catch (error) {
+    console.error('❌ Error fetching tax cases:', error);
+    res.status(500).json({ error: 'Failed to fetch tax cases' });
+  }
+});
+
+app.post('/api/tax/cases', (req, res) => {
+  try {
+    const { case: taxCase } = req.body;
+    taxCases.push(taxCase);
+
+    // Update learning metrics
+    learningMetrics.total_cases++;
+    if (taxCase.success) {
+      learningMetrics.successful_cases++;
+    }
+    learningMetrics.accuracy_rate = learningMetrics.successful_cases / learningMetrics.total_cases;
+
+    console.log(`📋 Added tax case: ${taxCase.case_type} (${taxCase.success ? 'success' : 'failed'})`);
+    res.json({ success: true, total: taxCases.length });
+  } catch (error) {
+    console.error('❌ Error storing tax case:', error);
+    res.status(500).json({ error: 'Failed to store tax case' });
+  }
+});
+
+// Learning Metrics Endpoint
+app.get('/api/tax/metrics', (req, res) => {
+  try {
+    res.json(learningMetrics);
+  } catch (error) {
+    console.error('❌ Error fetching learning metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch learning metrics' });
+  }
+});
+
+// Legal References Endpoint
+app.get('/api/tax/legal-references', (req, res) => {
+  try {
+    const legalReferences = [
+      {
+        norm: 'EStG',
+        paragraph: '§9',
+        title: 'Werbungskosten',
+        url: 'https://www.gesetze-im-internet.de/estg/__9.html',
+        last_checked: new Date().toISOString()
+      },
+      {
+        norm: 'EStG',
+        paragraph: '§32a',
+        title: 'Einkommensteuertarif',
+        url: 'https://www.gesetze-im-internet.de/estg/__32a.html',
+        last_checked: new Date().toISOString()
+      },
+      {
+        norm: 'EStG',
+        paragraph: '§10',
+        title: 'Sonderausgaben',
+        url: 'https://www.gesetze-im-internet.de/estg/__10.html',
+        last_checked: new Date().toISOString()
+      }
+    ];
+    
+    res.json(legalReferences);
+  } catch (error) {
+    console.error('❌ Error fetching legal references:', error);
+    res.status(500).json({ error: 'Failed to fetch legal references' });
+  }
+});
+
+// Tax Calculation Engine
+app.post('/api/tax/calculate', (req, res) => {
+  try {
+    const { income, deductions, filing_type = 'single', year = 2024 } = req.body;
+    
+    // Calculate zu versteuerndes Einkommen
+    const zvE = Math.max(0, income - deductions);
+    
+    // 2024 German income tax calculation
+    let einkommensteuer = 0;
+    if (zvE > 11604) {
+      if (zvE <= 17005) {
+        einkommensteuer = Math.round((zvE - 11604) * 0.14);
+      } else if (zvE <= 66760) {
+        einkommensteuer = Math.round(1190.04 + (zvE - 17005) * 0.24);
+      } else if (zvE <= 277825) {
+        einkommensteuer = Math.round(13141.24 + (zvE - 66760) * 0.42);
+      } else {
+        einkommensteuer = Math.round(101462.77 + (zvE - 277825) * 0.45);
+      }
+    }
+    
+    const solidaritaetszuschlag = Math.round(einkommensteuer * 0.055);
+    const kirchensteuer = filing_type.includes('church') ? Math.round(einkommensteuer * 0.08) : 0;
+    
+    const result = {
+      zu_versteuerndes_einkommen: zvE,
+      einkommensteuer,
+      solidaritaetszuschlag,
+      kirchensteuer,
+      total_tax: einkommensteuer + solidaritaetszuschlag + kirchensteuer,
+      effective_rate: zvE > 0 ? ((einkommensteuer + solidaritaetszuschlag + kirchensteuer) / zvE * 100) : 0,
+      marginal_rate: zvE > 277825 ? 45 : zvE > 66760 ? 42 : zvE > 17005 ? 24 : zvE > 11604 ? 14 : 0
+    };
+    
+    console.log(`💰 Tax calculation: zvE €${zvE} → Tax €${result.total_tax}`);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error calculating tax:', error);
+    res.status(500).json({ error: 'Failed to calculate tax' });
+  }
+});
+
+// Tax Optimization Endpoint
+app.post('/api/tax/optimize', (req, res) => {
+  try {
+    const { positions, profile, income, current_deductions, homeoffice_days, business_expenses } = req.body;
+    
+    // Handle both old format (positions/profile) and new format (direct parameters)
+    let currentDeductions = current_deductions || 0;
+    let totalIncome = income || 0;
+    
+    if (positions) {
+      // Old format - extract from positions
+      const werbungskosten = positions.filter(p => p.formular === 'Anlage N' && p.kennziffer.startsWith('WK'));
+      currentDeductions = werbungskosten.reduce((sum, p) => sum + p.value, 0);
+    }
+    
+    // Simple optimization suggestions
+    const optimizations = [];
+    
+    // Check Werbungskosten optimization
+    const pauschbetrag = 1230;
+    
+    if (currentDeductions < pauschbetrag * 0.8) {
+      optimizations.push({
+        type: 'werbungskosten',
+        description: 'Prüfen Sie weitere Werbungskosten wie Homeoffice-Pauschale, Fortbildungen oder Fachliteratur',
+        savings: Math.round((pauschbetrag - currentDeductions) * 0.25), // Assuming 25% tax rate
+        confidence: 0.7
+      });
+    }
+    
+    // Homeoffice optimization
+    if (homeoffice_days && homeoffice_days > 0) {
+      const homeofficeDeduction = Math.min(homeoffice_days * 5, 1260); // Max €1,260 per year
+      optimizations.push({
+        type: 'homeoffice',
+        description: `Homeoffice-Pauschale für ${homeoffice_days} Tage`,
+        savings: Math.round(homeofficeDeduction * 0.25),
+        confidence: 0.9
+      });
+    }
+    
+    // Business expenses optimization
+    if (business_expenses && business_expenses > 0) {
+      optimizations.push({
+        type: 'business_expenses',
+        description: 'Geschäftsausgaben als Werbungskosten geltend machen',
+        savings: Math.round(business_expenses * 0.25),
+        confidence: 0.8
+      });
+    }
+    
+    // Calculate current and optimized tax
+    const currentTax = calculateGermanTax(totalIncome, currentDeductions);
+    const additionalDeductions = optimizations.reduce((sum, opt) => sum + (opt.savings / 0.25), 0);
+    const optimizedTax = calculateGermanTax(totalIncome, currentDeductions + additionalDeductions);
+    const totalSavings = currentTax.total_tax - optimizedTax.total_tax;
+    
+    res.json({
+      current_tax: currentTax.total_tax,
+      optimized_tax: optimizedTax.total_tax,
+      tax_savings: totalSavings,
+      suggestions: optimizations,
+      total_potential_savings: optimizations.reduce((sum, opt) => sum + opt.savings, 0)
+    });
+  } catch (error) {
+    console.error('❌ Error optimizing tax:', error);
+    res.status(500).json({ error: 'Failed to optimize tax' });
+  }
+});
+
+// Initialize tax knowledge on startup
+initializeTaxKnowledge();
 
 // Error handling middleware
 app.use((error, req, res, next) => {
