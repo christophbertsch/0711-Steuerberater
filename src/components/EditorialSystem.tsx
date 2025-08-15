@@ -8,6 +8,7 @@ import { Search, BookOpen, Zap, CheckCircle, AlertCircle, Clock, Download, Datab
 import { EditorialManager, EditorialIngestRequest, EditorialIngestResult } from '../editorial/EditorialManager';
 import { RuleSpec, EditorialNote, UserStep } from '../editorial/types';
 import { BulkEditorialIngestion } from './BulkEditorialIngestion';
+import EditorialSearch from './EditorialSearch';
 
 interface EditorialSystemProps {
   onRuleSpecsGenerated?: (rulespecs: RuleSpec[]) => void;
@@ -19,7 +20,7 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
   onEditorialContentGenerated
 }) => {
   const [editorialManager] = useState(() => new EditorialManager());
-  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk' | 'search'>('single');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [customQueries, setCustomQueries] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -128,6 +129,17 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
         >
           <Database className="w-4 h-4 inline mr-2" />
           Bulk Ingestion
+        </button>
+        <button
+          onClick={() => setActiveTab('search')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'search'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Search className="w-4 h-4 inline mr-2" />
+          Content Search
         </button>
       </div>
 
@@ -358,6 +370,11 @@ export const EditorialSystem: React.FC<EditorialSystemProps> = ({
       {/* Bulk Ingestion Tab */}
       {activeTab === 'bulk' && (
         <BulkEditorialIngestion />
+      )}
+
+      {/* Content Search Tab */}
+      {activeTab === 'search' && (
+        <EditorialSearch />
       )}
     </div>
   );

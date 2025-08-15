@@ -325,12 +325,22 @@ export class EditorialManager {
       const result = await response.json();
       console.log(`✅ Successfully stored editorial package in database:`, result);
       
+      // Store editorial content in Qdrant for semantic search
+      await this.storeInQdrant(editorialPackage);
+      
       // Also store in memory for immediate access
       this.packages.set(editorialPackage.package_id, editorialPackage);
       
     } catch (error) {
       console.warn(`⚠️ Failed to store editorial package in database: ${error}`);
       console.log(`📋 Storing in memory only for package: ${editorialPackage.package_id}`);
+      
+      // Still try to store in Qdrant even if database fails
+      try {
+        await this.storeInQdrant(editorialPackage);
+      } catch (qdrantError) {
+        console.warn(`⚠️ Failed to store in Qdrant: ${qdrantError}`);
+      }
       
       // Fallback to memory storage
       this.packages.set(editorialPackage.package_id, editorialPackage);
@@ -346,6 +356,182 @@ export class EditorialManager {
         kz_mappings_count: editorialPackage.kz_mappings.length,
         quality_summary: editorialPackage.quality_summary
       });
+    }
+  }
+
+  /**
+   * Store editorial content in Qdrant for semantic search
+   */
+  private async storeInQdrant(editorialPackage: EditorialPackage): Promise<void> {
+    console.log(`🔍 Storing editorial content in Qdrant: ${editorialPackage.package_id}`);
+    
+    try {
+      // Prepare documents for Qdrant storage
+      const documents = [];
+      
+      // Store rule specifications
+      for (const rule of editorialPackage.rulespecs) {
+        const conditions = Array.isArray(rule.conditions) ? rule.conditions.join(', ') : (rule.conditions || 'N/A');
+        const references = Array.isArray(rule.references) ? rule.references.join(', ') : (rule.references || 'N/A');
+        
+        documents.push({
+          filename: `rule_${rule.rule_id}.txt`,
+          text: `${rule.title || 'Untitled Rule'}\n\n${rule.description || 'No description'}\n\nConditions: ${conditions}\n\nFormula: ${rule.formula || 'N/A'}\n\nReferences: ${references}`,
+          documentType: 'editorial_rule',
+          metadata: {
+            package_id: editorialPackage.package_id,
+            topic: editorialPackage.topic,
+            rule_id: rule.rule_id,
+            content_type: 'rule_specification',
+            priority: rule.priority || 'medium',
+            effective_date: rule.effective_date || new Date().toISOString().split('T')[0],
+            version: editorialPackage.version
+          }
+        });
+      }
+      
+      // Store editorial notes
+      for (const note of editorialPackage.editorial_notes) {
+        const tags = Array.isArray(note.tags) ? note.tags.join(', ') : (note.tags || 'N/A');
+        
+        documents.push({
+          filename: `note_${note.note_id}.txt`,
+          text: `${note.title || 'Untitled Note'}\n\n${note.content || 'No content'}\n\nTags: ${tags}`,
+          documentType: 'editorial_note',
+          metadata: {
+            package_id: editorialPackage.package_id,
+            topic: editorialPackage.topic,
+            note_id: note.note_id,
+            content_type: 'editorial_note',
+            note_type: note.note_type || 'general',
+            target_audience: note.target_audience || 'general',
+            version: editorialPackage.version
+          }
+        });
+      }
+      
+      // Store user steps
+      for (const step of editorialPackage.user_steps) {
+        const validationRules = Array.isArray(step.validation_rules) ? step.validation_rules.join(', ') : (step.validation_rules || 'N/A');
+        
+        documents.push({
+          filename: `step_${step.step_id}.txt`,
+          text: `${step.title || 'Untitled Step'}\n\n${step.description || 'No description'}\n\nInstructions: ${step.instructions || 'No instructions'}\n\nValidation: ${validationRules}`,
+          documentType: 'editorial_step',
+          metadata: {
+            package_id: editorialPackage.package_id,
+            topic: editorialPackage.topic,
+            step_id: step.step_id,
+            content_type: 'user_step',
+            step_type: step.step_type || 'general',
+            form_target: step.form_target || 'general',
+            version: editorialPackage.version
+          }
+        });
+      }
+      
+      // Upload documents to Qdrant via API
+      for (const doc of documents) {
+        const formData = new FormData();
+        const blob = new Blob([doc.text], { type: 'text/plain' });
+        formData.append('document', blob, doc.filename);
+        formData.append('metadata', JSON.stringify(doc.metadata));
+        
+        const uploadResponse = await fetch('/api/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+          console.warn(`⚠️ Failed to upload ${doc.filename} to Qdrant: ${uploadResponse.status}`);
+        } else {
+          console.log(`✅ Uploaded ${doc.filename} to Qdrant`);
+        }
+      }
+      
+      console.log(`🎉 Successfully stored ${documents.length} editorial documents in Qdrant`);
+      
+    } catch (error) {
+      console.error(`❌ Failed to store editorial content in Qdrant:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search editorial content in Qdrant
+   */
+  async searchEditorialContent(query: string, contentType?: string, topic?: string, limit: number = 10): Promise<any[]> {
+    console.log(`🔍 Searching editorial content: "${query}"`);
+    
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          limit,
+          includeCorrupted: false,
+          filters: {
+            documentType: contentType ? [contentType] : ['editorial_rule', 'editorial_note', 'editorial_step'],
+            topic: topic ? [topic] : undefined
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const results = data.results || [];
+      
+      console.log(`✅ Found ${results.length} editorial content matches`);
+      return results;
+      
+    } catch (error) {
+      console.error(`❌ Failed to search editorial content:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get editorial content by type and topic from Qdrant
+   */
+  async getEditorialContentByType(contentType: 'editorial_rule' | 'editorial_note' | 'editorial_step', topic?: string, limit: number = 50): Promise<any[]> {
+    console.log(`📋 Getting ${contentType} content${topic ? ` for topic: ${topic}` : ''}`);
+    
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: '*', // Get all documents
+          limit,
+          includeCorrupted: false,
+          filters: {
+            documentType: [contentType],
+            topic: topic ? [topic] : undefined
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const results = data.results || [];
+      
+      console.log(`✅ Retrieved ${results.length} ${contentType} documents`);
+      return results;
+      
+    } catch (error) {
+      console.error(`❌ Failed to get ${contentType} content:`, error);
+      return [];
     }
   }
 
