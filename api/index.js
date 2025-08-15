@@ -370,7 +370,8 @@ async function extractPDFTextReliable(buffer, fileName) {
       });
       
       // Try PDF2Q service first (known to work well with German text)
-      const pdf2qResponse = await fetch('http://localhost:5000/extract', {
+      const pdf2qUrl = process.env.PDF2Q_SERVICE_URL || 'https://pdf2q.onrender.com';
+      const pdf2qResponse = await fetch(`${pdf2qUrl}/extract`, {
         method: 'POST',
         body: form,
         timeout: 15000 // 15 second timeout
