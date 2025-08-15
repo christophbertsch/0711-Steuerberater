@@ -5,5 +5,8 @@
 .env.staging
 node_modules
 uploads/*.pdf
+uploads/*.xml
+uploads/document-*
 dist/assets/index-*.js
 dist/assets/index-*.js.map
+api.log
