@@ -1,0 +1,37 @@
+[dotenv@17.2.1] injecting env (8) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+✅ OpenAI API initialized successfully
+Tax & Law AI Expert server running on http://localhost:13000
+Make sure to set your OPENAI_API_KEY and TAVILY_API_KEY environment variables
+Failed to initialize database: error: password authentication failed for user "postgres"
+    at /workspace/project/0711-Steuerberater/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async initializeDatabase (file:///workspace/project/0711-Steuerberater/database/connection.js:41:18)
+    at async initApp (file:///workspace/project/0711-Steuerberater/api/index.js:101:5) {
+  length: 104,
+  severity: 'FATAL',
+  code: '28P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'auth.c',
+  line: '349',
+  routine: 'auth_failed'
+}
+🔍 Semantic search request: "Lohnsteuerbescheinigung"
+🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
+✅ Generated embedding for query: "Lohnsteuerbescheinigung"
+📊 Found 3 similar documents
+✅ Found 3 semantically similar documents
+🔍 Semantic search request: "Lohnsteuerbescheinigung"
+🔍 Searching Qdrant for: "Lohnsteuerbescheinigung"
+✅ Generated embedding for query: "Lohnsteuerbescheinigung"
+📊 Found 3 similar documents
+✅ Found 3 semantically similar documents

@@ -35,12 +35,16 @@ const SpecializedAgents: React.FC = () => {
   });
   const [analysis, setAnalysis] = useState<AgentAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [qdrantLoading, setQdrantLoading] = useState(false);
   const [lohnsteuerData, setLohnsteuerData] = useState<any>(null);
   const [dataSource, setDataSource] = useState<'manual' | 'document'>('manual');
 
   // Query Qdrant for Lohnsteuer documents and extract data
   const fetchLohnsteuerFromQdrant = async () => {
+    console.log('🔍 Fetching Lohnsteuer data from Qdrant...');
+    setQdrantLoading(true);
     try {
+      console.log('📡 Making request to /api/documents/search');
       const response = await fetch('/api/documents/search', {
         method: 'POST',
         headers: {
@@ -51,9 +55,12 @@ const SpecializedAgents: React.FC = () => {
           limit: 5
         }),
       });
+      
+      console.log('📥 Response status:', response.status, response.statusText);
 
       if (response.ok) {
         const results = await response.json();
+        console.log('📊 Search results:', results.length, 'documents found');
         
         // Find the most relevant Lohnsteuer document
         const lohnsteuerDoc = results.find((doc: any) => 
@@ -63,8 +70,12 @@ const SpecializedAgents: React.FC = () => {
           doc.documentType === 'lohnsteuerbescheinigung'
         );
 
+        console.log('📄 Found Lohnsteuer document:', lohnsteuerDoc ? lohnsteuerDoc.filename : 'None');
+
         if (lohnsteuerDoc) {
           const extractedData = extractDataFromLohnsteuerText(lohnsteuerDoc.text);
+          console.log('💰 Extracted data:', extractedData);
+          
           if (extractedData.salary > 0) {
             setLohnsteuerData({
               ...extractedData,
@@ -81,12 +92,17 @@ const SpecializedAgents: React.FC = () => {
             }));
             
             setDataSource('document');
+            console.log('✅ Successfully updated user profile with Qdrant data');
             return extractedData;
           }
         }
+      } else {
+        console.error('❌ API request failed:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error fetching Lohnsteuer data from Qdrant:', error);
+    } finally {
+      setQdrantLoading(false);
     }
     return null;
   };
@@ -362,10 +378,20 @@ const SpecializedAgents: React.FC = () => {
       <div className="text-center mb-4">
         <button
           onClick={fetchLohnsteuerFromQdrant}
-          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center mx-auto text-sm"
+          disabled={qdrantLoading}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto text-sm"
         >
-          <Search className="w-4 h-4 mr-2" />
-          Lohnsteuer-Daten aus Qdrant aktualisieren
+          {qdrantLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Lade Daten...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4 mr-2" />
+              Lohnsteuer-Daten aus Qdrant aktualisieren
+            </>
+          )}
         </button>
       </div>
 
