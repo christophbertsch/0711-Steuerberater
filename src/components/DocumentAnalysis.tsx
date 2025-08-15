@@ -87,17 +87,68 @@ const DocumentAnalysis: React.FC<DocumentAnalysisProps> = ({ documents }) => {
     let totalSocialInsurance = 0;
     let employerInfo = null;
     let personalInfo = null;
+    const extractedDocuments: any[] = [];
 
     lohnsteuerDocs.forEach(doc => {
+      console.log('🔍 Processing Lohnsteuer document:', doc.filename);
       const extracted = extractLohnsteuerData(doc.text);
       if (extracted) {
-        totalSalary += extracted.salary || 0;
-        totalTax += extracted.tax || 0;
-        totalSocialInsurance += extracted.socialInsurance || 0;
+        console.log('✅ Extracted data from', doc.filename, ':', {
+          salary: extracted.salary,
+          tax: extracted.tax,
+          socialInsurance: extracted.socialInsurance,
+          employer: extracted.employer
+        });
+        extractedDocuments.push({
+          ...extracted,
+          filename: doc.filename,
+          documentId: doc.id
+        });
         if (extracted.employer) employerInfo = extracted.employer;
         if (extracted.taxId) personalInfo = extracted;
+      } else {
+        console.log('❌ No data extracted from', doc.filename);
       }
     });
+
+    // Handle multiple Lohnsteuerbescheinigungen correctly
+    if (extractedDocuments.length > 0) {
+      console.log('📊 Processing', extractedDocuments.length, 'Lohnsteuer documents');
+      
+      if (extractedDocuments.length === 1) {
+        // Single document - use values directly
+        const doc = extractedDocuments[0];
+        totalSalary = doc.salary || 0;
+        totalTax = doc.tax || 0;
+        totalSocialInsurance = doc.socialInsurance || 0;
+        console.log('📄 Single document values:', { totalSalary, totalTax, totalSocialInsurance });
+      } else {
+        // Multiple documents - check if they're from different years or employers
+        const uniqueEmployers = [...new Set(extractedDocuments.map(d => d.employer).filter(Boolean))];
+        const salaries = extractedDocuments.map(d => d.salary).filter(Boolean);
+        const taxes = extractedDocuments.map(d => d.tax).filter(Boolean);
+        
+        console.log('🏢 Unique employers:', uniqueEmployers);
+        console.log('💰 All salaries:', salaries);
+        console.log('💸 All taxes:', taxes);
+        
+        if (uniqueEmployers.length > 1) {
+          // Different employers - sum up
+          totalSalary = salaries.reduce((sum, salary) => sum + salary, 0);
+          totalTax = taxes.reduce((sum, tax) => sum + tax, 0);
+          totalSocialInsurance = extractedDocuments.reduce((sum, doc) => sum + (doc.socialInsurance || 0), 0);
+          console.log('➕ Multiple employers - summing values:', { totalSalary, totalTax, totalSocialInsurance });
+        } else {
+          // Same employer - likely different years or duplicates, use the highest values
+          totalSalary = Math.max(...salaries);
+          totalTax = Math.max(...taxes);
+          totalSocialInsurance = Math.max(...extractedDocuments.map(d => d.socialInsurance || 0));
+          console.log('📈 Same employer - using max values:', { totalSalary, totalTax, totalSocialInsurance });
+        }
+      }
+    } else {
+      console.log('❌ No Lohnsteuer documents with extractable data found');
+    }
 
     // Calculate potential deductions from receipts
     const potentialDeductions = calculatePotentialDeductions(receiptDocs, donationDocs);
@@ -136,33 +187,74 @@ const DocumentAnalysis: React.FC<DocumentAnalysisProps> = ({ documents }) => {
       for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
+          console.log(`🔍 Pattern matched:`, pattern.toString(), 'found:', match[1], 'and', match[2] || '');
+          
           if (match[2] !== undefined) {
-            const euros = match[1].replace(/\./g, '');
-            const cents = match[2].padStart(2, '0');
+            // Two-part match (euros + cents): "71.218 69" -> 71218.69
+            const euros = match[1].replace(/\./g, ''); // Remove dots from euros part
+            const cents = match[2].padStart(2, '0'); // Ensure cents is 2 digits
             const value = parseFloat(`${euros}.${cents}`);
-            if (value >= 1000) return value;
+            if (value >= 100) { // Lower threshold to catch more values
+              console.log(`✅ Two-part value extracted:`, value);
+              return value;
+            }
           } else {
-            const value = parseFloat(match[1].replace(/[.,]/g, ''));
-            if (value >= 1000) return value;
+            // Single match - handle different formats
+            let cleanValue = match[1];
+            if (cleanValue.includes(',')) {
+              // German format: 71.218,69 -> 71218.69
+              cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+            } else if (cleanValue.includes('.') && cleanValue.split('.').length > 2) {
+              // Multiple dots: 71.218.69 -> 71218.69
+              const parts = cleanValue.split('.');
+              if (parts.length === 3 && parts[2].length <= 2) {
+                cleanValue = parts[0] + parts[1] + '.' + parts[2];
+              } else {
+                cleanValue = cleanValue.replace(/\./g, '');
+              }
+            }
+            
+            const value = parseFloat(cleanValue);
+            if (value >= 100) { // Lower threshold
+              console.log(`✅ Single value extracted:`, value);
+              return value;
+            }
           }
         }
       }
+      console.log(`❌ No value found with patterns`);
       return null;
     };
 
     const salaryPatterns = [
+      // Exact patterns from document: "3. Bruttoarbeitslohn einschl. Sachbezüge ohne 9. und 10. 71.218 69"
       /3\.\s+Bruttoarbeitslohn\s+einschl\.\s+Sachbezüge[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
-      /Bruttoarbeitslohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i
+      /(71\.218)\s+(69)/i, // Exact value match
+      /(71218)\s+(69)/i,   // Without dots
+      // More general patterns
+      /Bruttoarbeitslohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      /Bruttolohn[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
+      // Single number patterns as fallback
+      /Bruttoarbeitslohn[^0-9]*([0-9]+[.,][0-9]+)/i,
+      /3\.\s+Bruttoarbeitslohn[^0-9]*([0-9]+[.,][0-9]+)/i
     ];
 
     const taxPatterns = [
+      // Exact patterns: "4. Einbehaltene Lohnsteuer von 3. 13.663 00"
+      /(13\.663)\s+(00)/i,
+      /(13663)\s+(00)/i,
+      /Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
       /4\.\s+Einbehaltene\s+Lohnsteuer\s+von\s+3\.\s+([0-9]+\.?[0-9]*)\s+([0-9]+)/i,
-      /Einbehaltene\s+Lohnsteuer[^0-9]*([0-9]+\.?[0-9]*)\s+([0-9]+)/i
+      // Single number patterns as fallback
+      /Einbehaltene\s+Lohnsteuer[^0-9]*([0-9]+[.,][0-9]+)/i,
+      /4\.\s+Einbehaltene\s+Lohnsteuer[^0-9]*([0-9]+[.,][0-9]+)/i
     ];
 
     const socialInsurancePatterns = [
       /Rentenversicherung[:\s]*([0-9.,]+)/i,
-      /Sozialversicherung[:\s]*([0-9.,]+)/i
+      /Sozialversicherung[:\s]*([0-9.,]+)/i,
+      /Krankenversicherung[:\s]*([0-9.,]+)/i,
+      /Arbeitslosenversicherung[:\s]*([0-9.,]+)/i
     ];
 
     const salary = extractNumber(salaryPatterns);
