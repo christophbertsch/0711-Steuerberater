@@ -61,17 +61,17 @@
       "update_cadence_days": 14,
       "queries": {
         "LAW": [
-          "Einkommensteuergesetz 2024",
-          "EStG § 2 2024",
-          "EStG § 32a Tarif 2024"
+          "site:www.gesetze-im-internet.de Einkommensteuergesetz <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 2 <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 32a Tarif <YEAR>"
         ],
         "BMF": [
-          "BMF-Schreiben Einkommensteuer 2024",
-          "Anwendungserlass Einkommensteuer 2024"
+          "site:www.bundesfinanzministerium.de BMF-Schreiben Einkommensteuer <YEAR>",
+          "site:www.bundesfinanzministerium.de Anwendungserlass Einkommensteuer <YEAR>"
         ],
         "RULING": [
-          "Einkommensteuer Leitsatz 2024",
-          "EStG § 32a Urteil 2024"
+          "site:www.bundesfinanzhof.de Einkommensteuer Leitsatz <YEAR>",
+          "site:www.bundesfinanzhof.de EStG § 32a Urteil <YEAR>"
         ]
       },
       "extract": ["Tarifformeln", "Freibetraege", "Veranlagungsarten", "Begriffsdefinitionen (§2 EStG)"],
@@ -84,20 +84,20 @@
       "update_cadence_days": 10,
       "queries": {
         "LAW": [
-          "EStG § 19 2024",
-          "EStG § 9 Werbungskosten 2024"
+          "site:www.gesetze-im-internet.de EStG § 19 <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 9 Werbungskosten <YEAR>"
         ],
         "BMF": [
-          "BMF-Schreiben Werbungskosten 2024",
-          "BMF Reisekosten Verpflegungsmehraufwand 2024"
+          "site:www.bundesfinanzministerium.de BMF-Schreiben Werbungskosten <YEAR>",
+          "site:www.bundesfinanzministerium.de BMF Reisekosten Verpflegungsmehraufwand <YEAR>"
         ],
         "RULING": [
-          "doppelte Haushaltsführung Urteil 2024",
-          "Entfernungspauschale Urteil 2024"
+          "site:www.bundesfinanzhof.de doppelte Haushaltsführung Urteil <YEAR>",
+          "site:www.bundesfinanzhof.de Entfernungspauschale Urteil <YEAR>"
         ],
         "FORM": [
-          "Anlage N Erläuterungen 2024",
-          "ESt1A Kennziffern Anlage N 2024"
+          "site:www.elster.de Anlage N Erläuterungen <YEAR>",
+          "site:www.elster.de ESt1A Kennziffern Anlage N <YEAR>"
         ]
       },
       "extract": ["Bruttoarbeitslohn", "Lohnsteuer", "Soli", "Kirchensteuer", "Werbungskostenkatalog", "Pauschbetrag", "Reisekosten", "Doppelte HH", "Homeoffice/Arbeitszimmer"],
@@ -110,14 +110,14 @@
       "update_cadence_days": 14,
       "queries": {
         "LAW": [
-          "EStG § 10 2024",
-          "EStG § 10 Abs 1 Nr 3a 2024"
+          "site:www.gesetze-im-internet.de EStG § 10 <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 10 Abs 1 Nr 3a <YEAR>"
         ],
         "BMF": [
-          "BMF Vorsorgeaufwendungen 2024"
+          "site:www.bundesfinanzministerium.de BMF Vorsorgeaufwendungen <YEAR>"
         ],
         "FORM": [
-          "Anlage Vorsorgeaufwand Erläuterung 2024"
+          "site:www.elster.de Anlage Vorsorgeaufwand Erläuterung <YEAR>"
         ]
       },
       "extract": ["Höchstbeträge KV/PV/RV/AV", "Abzugsfähigkeit", "Sonderfälle", "Berechnungslogik"],
@@ -130,21 +130,62 @@
       "update_cadence_days": 20,
       "queries": {
         "LAW": [
-          "EStG § 10b 2024",
-          "EStG § 10 Abs 2024"
+          "site:www.gesetze-im-internet.de EStG § 10b <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 10 Abs <YEAR>"
         ],
         "BMF": [
-          "BMF Schreiben Spenden §10b 2024"
+          "site:www.bundesfinanzministerium.de BMF Schreiben Spenden §10b <YEAR>"
         ],
         "RULING": [
-          "Spendenabzug Urteil 2024"
+          "site:www.bundesfinanzhof.de Spendenabzug Urteil <YEAR>"
         ],
         "FORM": [
-          "Anlage Sonderausgaben Erläuterungen 2024"
+          "site:www.elster.de Anlage Sonderausgaben Erläuterungen <YEAR>"
         ]
       },
       "extract": ["20%-Grenze", "Zuwendungsnachweis", "Kirchensteuer", "Sonderfälle Sachspenden"],
       "form_map_targets": ["Sonderausgaben"]
+    },
+    {
+      "id": "ESt_AGBelastungen",
+      "title": "Außergewöhnliche Belastungen – §33 EStG",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 33 <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF außergewöhnliche Belastungen <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de außergewöhnliche Belastungen Urteil <YEAR>"
+        ]
+      },
+      "extract": ["zumutbare Belastung", "Heil- und Pflegekosten", "Behinderungspauschbeträge"],
+      "form_map_targets": ["ESt1A", "Anlage außergewöhnliche Belastungen"]
+    },
+    {
+      "id": "ESt_Par35a35c",
+      "title": "Steuerermäßigungen §35a/§35c EStG",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 35a <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 35c <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF §35a <YEAR>",
+          "site:www.bundesfinanzministerium.de BMF §35c <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de §35a Anleitung <YEAR>",
+          "site:www.elster.de §35c Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Höchstbeträge", "Begünstigte Aufwendungen", "Nachweispflichten"],
+      "form_map_targets": ["ESt1A", "Anlage Sonstiges"]
     },
     {
       "id": "ESt_KAP",
@@ -153,20 +194,39 @@
       "update_cadence_days": 20,
       "queries": {
         "LAW": [
-          "EStG § 20 2024"
+          "site:www.gesetze-im-internet.de EStG § 20 <YEAR>"
         ],
         "BMF": [
-          "BMF Kapitalerträge 2024"
+          "site:www.bundesfinanzministerium.de BMF Kapitalerträge <YEAR>"
         ],
         "RULING": [
-          "Abgeltungsteuer Urteil 2024"
+          "site:www.bundesfinanzhof.de Abgeltungsteuer Urteil <YEAR>"
         ],
         "FORM": [
-          "Anlage KAP Erläuterungen 2024"
+          "site:www.elster.de Anlage KAP Erläuterungen <YEAR>"
         ]
       },
       "extract": ["Abgeltungsteuer", "Günstigerprüfung", "Kirchensteuer auf Kapitalerträge"],
       "form_map_targets": ["Anlage KAP"]
+    },
+    {
+      "id": "ESt_V",
+      "title": "Vermietung und Verpachtung – Anlage V",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 21 <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF Vermietung Werbungskosten <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de Anlage V Erläuterungen <YEAR>"
+        ]
+      },
+      "extract": ["AfA Gebäude", "Umlagen", "Schuldzinsen", "Leerstand"],
+      "form_map_targets": ["Anlage V"]
     },
     {
       "id": "USt_Core",
@@ -175,23 +235,252 @@
       "update_cadence_days": 10,
       "queries": {
         "LAW": [
-          "Umsatzsteuergesetz 2024",
-          "2006/112/EG Mehrwertsteuer 2024"
+          "site:www.gesetze-im-internet.de Umsatzsteuergesetz <YEAR>",
+          "site:eur-lex.europa.eu 2006/112/EG Mehrwertsteuer <YEAR>"
         ],
         "BMF": [
-          "USt Anwendungserlass 2024",
-          "BMF Schreiben Umsatzsteuer 2024"
+          "site:www.bundesfinanzministerium.de USt Anwendungserlass <YEAR>",
+          "site:www.bundesfinanzministerium.de BMF Schreiben Umsatzsteuer <YEAR>"
         ],
         "FORM": [
-          "UStVA Kennziffern 2024",
-          "USt-2A Jahreserklärung Anleitung 2024"
+          "site:www.elster.de UStVA Kennziffern <YEAR>",
+          "site:www.elster.de USt-2A Jahreserklärung Anleitung <YEAR>"
         ],
         "RULING": [
-          "UStG § 15 Vorsteuer Urteil 2024"
+          "site:www.bundesfinanzhof.de UStG § 15 Vorsteuer Urteil <YEAR>"
         ]
       },
       "extract": ["Steuerbarkeit", "Steuersätze", "Vorsteuerabzug", "Reverse Charge", "IG-Lieferungen", "Kleinunternehmer §19"],
       "form_map_targets": ["UStVA", "USt-2A", "ZM", "OSS"]
+    },
+    {
+      "id": "KSt_Core",
+      "title": "Körperschaftsteuer – Grundlagen",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Körperschaftsteuergesetz <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF Körperschaftsteuer <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de KSt1 Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Bemessungsgrundlage", "Steuersatz", "Verlustabzug", "Organschaft"],
+      "form_map_targets": ["KSt1"]
+    },
+    {
+      "id": "GewSt_Core",
+      "title": "Gewerbesteuer – Hinzurechnungen & Kürzungen",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Gewerbesteuergesetz <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF Gewerbesteuer Hinzurechnungen <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de GewSt1A Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Zinsen/Hinzurechnungen §8", "Kürzungen §9", "Hebesatz"],
+      "form_map_targets": ["GewSt1A"]
+    },
+    {
+      "id": "Bilanz_EBilanz",
+      "title": "E-Bilanz & Gewinnermittlung",
+      "priority": "medium",
+      "update_cadence_days": 45,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 4 Gewinn <YEAR>",
+          "site:www.gesetze-im-internet.de EStDV E-Bilanz <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de E-Bilanz Taxonomie <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de E-Bilanz Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Taxonomien", "GCD", "AfA-Methoden", "EÜR-Regeln"],
+      "form_map_targets": ["E-Bilanz", "EÜR"]
+    },
+    {
+      "id": "LSt_Core",
+      "title": "Lohnsteuer & Anmeldung",
+      "priority": "medium",
+      "update_cadence_days": 20,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 38 Lohnsteuer <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de ELStAM Lohnsteuer <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de Lohnsteuer-Anmeldung Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Steuerklassen", "Freibeträge", "ELStAM", "Sachbezüge"],
+      "form_map_targets": ["LSt-Anmeldung"]
+    },
+    {
+      "id": "KapESt_Core",
+      "title": "Kapitalertragsteuer & Abgeltungsteuer",
+      "priority": "medium",
+      "update_cadence_days": 30,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 43 KapESt <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 20 <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF Kapitalertragsteuer <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de KapESt-Anmeldung Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Quellensteuer", "Soli/KiSt auf KapESt", "Günstigerprüfung"],
+      "form_map_targets": ["KapESt-Anmeldung", "Anlage KAP"]
+    },
+    {
+      "id": "ErbSt_SchenkSt",
+      "title": "Erbschaft- & Schenkungsteuer",
+      "priority": "medium",
+      "update_cadence_days": 45,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de ErbStG <YEAR>",
+          "site:www.gesetze-im-internet.de BewG <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF Erbschaftsteuer <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de ErbSt Erklärung Anleitung <YEAR>",
+          "site:www.elster.de SchenkSt Erklärung Anleitung <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de ErbStG Urteil <YEAR>"
+        ]
+      },
+      "extract": ["Steuerklassen", "Freibeträge", "Bewertung", "Verschonung Betriebsvermögen"],
+      "form_map_targets": ["ErbSt", "SchenkSt"]
+    },
+    {
+      "id": "GrESt_Grundsteuer",
+      "title": "Grunderwerbsteuer & Grundsteuer",
+      "priority": "medium",
+      "update_cadence_days": 60,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de GrEStG <YEAR>",
+          "site:www.gesetze-im-internet.de Grundsteuergesetz <YEAR>"
+        ],
+        "STATE": [
+          "site:*.finanzministerium.* Grundsteuer Reform <YEAR>",
+          "site:*.bayern.de Grundsteuerwert <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de Grundsteuer Anleitung <YEAR>"
+        ]
+      },
+      "extract": ["Bemessungsgrundlagen", "Ausnahmen", "Ländermodelle"],
+      "form_map_targets": ["GrESt", "Grundsteuer"]
+    },
+    {
+      "id": "InvStG",
+      "title": "Investmentsteuergesetz",
+      "priority": "low",
+      "update_cadence_days": 60,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de InvStG <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF InvStG <YEAR>"
+        ]
+      },
+      "extract": ["Ausschüttungen", "Thesaurierung", "Vorabpauschale"],
+      "form_map_targets": ["Anlage KAP-INV (falls einschlägig)"]
+    },
+    {
+      "id": "EnergyTax",
+      "title": "Energie- & Stromsteuer",
+      "priority": "low",
+      "update_cadence_days": 60,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Energiesteuergesetz <YEAR>",
+          "site:www.gesetze-im-internet.de Stromsteuergesetz <YEAR>"
+        ],
+        "ADMIN": [
+          "site:www.zoll.de Energiesteuer Stromsteuer <YEAR>"
+        ]
+      },
+      "extract": ["Steuertarife", "Befreiungen", "Nachweise"],
+      "form_map_targets": ["Energiesteuer/Stromsteuer Formulare (Zoll)"]
+    },
+    {
+      "id": "InsuranceTax",
+      "title": "Versicherungssteuer",
+      "priority": "low",
+      "update_cadence_days": 60,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Versicherungsteuergesetz <YEAR>"
+        ],
+        "ADMIN": [
+          "site:www.bzst.de Versicherungssteuer Anmeldung <YEAR>"
+        ]
+      },
+      "extract": ["Steuerklassen", "Ausnahmen", "Satz"],
+      "form_map_targets": ["VersSt-Anmeldung"]
+    },
+    {
+      "id": "AO_Verfahren",
+      "title": "Abgabenordnung & Verfahrensrecht",
+      "priority": "high",
+      "update_cadence_days": 20,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Abgabenordnung <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF AO Anwendung <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de AO Fristen Urteil <YEAR>"
+        ]
+      },
+      "extract": ["Fristen", "Einspruch", "Festsetzungsverjährung", "Zinsen §233a AO"],
+      "form_map_targets": []
+    },
+    {
+      "id": "ELSTER_ERiC",
+      "title": "ELSTER/ERiC, Formulare & Kennziffern",
+      "priority": "high",
+      "update_cadence_days": 10,
+      "queries": {
+        "FORM": [
+          "site:www.elster.de ERiC Schema <YEAR>",
+          "site:www.elster.de ESt1A Vordruck <YEAR>",
+          "site:www.elster.de Anlage N Anleitung <YEAR>",
+          "site:www.elster.de UStVA Kennziffernliste <YEAR>"
+        ],
+        "ADMIN": [
+          "site:www.elster.de Entwickler Schnittstellenbeschreibung <YEAR>"
+        ]
+      },
+      "extract": ["Schema-Versionen", "KZ-Listen", "Pflichtfelder", "Validierungsregeln"],
+      "form_map_targets": ["Alle relevanten Formulare"]
     }
   ]
 }

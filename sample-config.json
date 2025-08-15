@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "jurisdiction": "DE",
+  "default_year": 2024,
+  "scheduler": {
+    "global_rate_limit_rps": 1.5,
+    "max_parallel_domains": 3,
+    "default_recrawl_days": 14,
+    "high_priority_recrawl_days": 3,
+    "pdf_ocr": "on_demand"
+  },
+  "evidence_policy": {
+    "allow_secondary": false,
+    "require_primary_citation": true,
+    "min_citation_coverage": 0.95,
+    "store_headers": ["ETag", "Last-Modified", "Content-Type", "Content-Length"]
+  },
+  "whitelist_sources": [
+    { "domain": "www.gesetze-im-internet.de", "type": "LAW", "priority": 10, "sitemaps": ["https://www.gesetze-im-internet.de/sitemap.xml"] },
+    { "domain": "www.bundesfinanzministerium.de", "type": "BMF", "priority": 10, "sitemaps": ["https://www.bundesfinanzministerium.de/SiteGlobals/Functions/Sitemap/Sitemap-DE.xml"] },
+    { "domain": "www.bundesfinanzhof.de", "type": "RULING", "priority": 9, "sitemaps": [] },
+    { "domain": "www.bgbl.de", "type": "GAZETTE", "priority": 9, "sitemaps": [] },
+    { "domain": "www.elster.de", "type": "FORM/TECH", "priority": 9, "sitemaps": [] },
+    { "domain": "www.bzst.de", "type": "ADMIN", "priority": 8, "sitemaps": [] },
+    { "domain": "www.bundesrat.de", "type": "PARLIAMENT", "priority": 7, "sitemaps": [] },
+    { "domain": "www.bundestag.de", "type": "PARLIAMENT", "priority": 7, "sitemaps": [] },
+    { "domain": "www.ofd.niedersachsen.de", "type": "STATE_FINMIN", "priority": 6, "sitemaps": [] },
+    { "domain": "www.finanzamt.bayern.de", "type": "STATE_FINMIN", "priority": 6, "sitemaps": [] },
+    { "domain": "www.justiz.bund.de", "type": "JUSTICE", "priority": 6, "sitemaps": [] },
+    { "domain": "eur-lex.europa.eu", "type": "EU_LAW", "priority": 7, "sitemaps": [] }
+  ],
+  "blacklist_domains": [
+    "wikipedia.org",
+    "reddit.com",
+    "anwalt.de",
+    "kanzlei-blogs.*",
+    "kommerzielle-news-portale.*",
+    "steuertipps-blogs.*"
+  ],
+  "parse_hints": {
+    "html": { "prefer": ["print", "singlepage"], "strip": ["nav", "footer", "cookie", "js"], "keep_tables": true },
+    "pdf": { "ocr_threshold_dpi": 300, "detect_layout": true, "extract_tables": true, "keep_page_coords": true },
+    "chunking": {
+      "LAW": { "by": ["§", "Abs.", "Satz", "Nr."], "max_chars": 2000 },
+      "BMF": { "by": ["Randziffer", "Ziffer", "Abschnitt"], "max_chars": 1800 },
+      "RULING": { "by": ["Leitsatz", "Gründe", "Tatbestand", "Rn."], "max_chars": 1800 },
+      "FORM": { "by": ["Formularteil", "Zeile", "KZ"], "max_chars": 1600 }
+    }
+  },
+  "link_rules": [
+    { "from": "BMF", "to": "LAW", "relation": "INTERPRETS", "pattern": "EStG|UStG|KStG|GewStG|AO|EStDV|UStDV|BewG" },
+    { "from": "RULING", "to": "LAW", "relation": "APPLIES", "pattern": "§\\s*\\d+\\s*[a-zA-Z]*\\s*(EStG|UStG|KStG|GewStG|AO|BewG)" },
+    { "from": "FORM", "to": "LAW", "relation": "MAPS_TO", "pattern": "Kennziffer|Zeile|Anlage" },
+    { "from": "EU_LAW", "to": "UStG", "relation": "HARMONIZES", "pattern": "MwSt-Systemrichtlinie|Richtlinie 2006/112/EG" }
+  ],
+  "topics": [
+    {
+      "id": "ESt_Core",
+      "title": "Einkommensteuer – Grundlagen, Tarife, Veranlagung",
+      "priority": "high",
+      "update_cadence_days": 14,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Einkommensteuergesetz <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 2 <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 32a Tarif <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF-Schreiben Einkommensteuer <YEAR>",
+          "site:www.bundesfinanzministerium.de Anwendungserlass Einkommensteuer <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de Einkommensteuer Leitsatz <YEAR>",
+          "site:www.bundesfinanzhof.de EStG § 32a Urteil <YEAR>"
+        ]
+      },
+      "extract": ["Tarifformeln", "Freibetraege", "Veranlagungsarten", "Begriffsdefinitionen (§2 EStG)"],
+      "form_map_targets": ["ESt1A"]
+    },
+    {
+      "id": "ESt_N_Income",
+      "title": "Nichtselbständige Arbeit – Anlage N",
+      "priority": "high",
+      "update_cadence_days": 10,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de EStG § 19 <YEAR>",
+          "site:www.gesetze-im-internet.de EStG § 9 Werbungskosten <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de BMF-Schreiben Werbungskosten <YEAR>",
+          "site:www.bundesfinanzministerium.de BMF Reisekosten Verpflegungsmehraufwand <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de doppelte Haushaltsführung Urteil <YEAR>",
+          "site:www.bundesfinanzhof.de Entfernungspauschale Urteil <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de Anlage N Erläuterungen <YEAR>",
+          "site:www.elster.de ESt1A Kennziffern Anlage N <YEAR>"
+        ]
+      },
+      "extract": ["Bruttoarbeitslohn", "Lohnsteuer", "Soli", "Kirchensteuer", "Werbungskostenkatalog", "Pauschbetrag", "Reisekosten", "Doppelte HH", "Homeoffice/Arbeitszimmer"],
+      "form_map_targets": ["Anlage N", "ESt1A"]
+    },
+    {
+      "id": "USt_Core",
+      "title": "Umsatzsteuer – Grundsystem & Voranmeldung",
+      "priority": "high",
+      "update_cadence_days": 10,
+      "queries": {
+        "LAW": [
+          "site:www.gesetze-im-internet.de Umsatzsteuergesetz <YEAR>",
+          "site:eur-lex.europa.eu 2006/112/EG Mehrwertsteuer <YEAR>"
+        ],
+        "BMF": [
+          "site:www.bundesfinanzministerium.de USt Anwendungserlass <YEAR>",
+          "site:www.bundesfinanzministerium.de BMF Schreiben Umsatzsteuer <YEAR>"
+        ],
+        "FORM": [
+          "site:www.elster.de UStVA Kennziffern <YEAR>",
+          "site:www.elster.de USt-2A Jahreserklärung Anleitung <YEAR>"
+        ],
+        "RULING": [
+          "site:www.bundesfinanzhof.de UStG § 15 Vorsteuer Urteil <YEAR>"
+        ]
+      },
+      "extract": ["Steuerbarkeit", "Steuersätze", "Vorsteuerabzug", "Reverse Charge", "IG-Lieferungen", "Kleinunternehmer §19"],
+      "form_map_targets": ["UStVA", "USt-2A", "ZM", "OSS"]
+    }
+  ]
+}

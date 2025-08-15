@@ -3,8 +3,8 @@
  * UI for automated processing of all tax law topics
  */
 
-import React, { useState, useEffect } from 'react';
-import { BulkIngestionManager, BulkIngestionResult } from '../editorial/BulkIngestionManager';
+import React, { useState, useEffect, useRef } from 'react';
+import { BulkIngestionManager, BulkIngestionResult, BulkIngestionConfig } from '../editorial/BulkIngestionManager';
 
 interface IngestionProgress {
   isRunning: boolean;
@@ -26,12 +26,67 @@ export const BulkEditorialIngestion: React.FC = () => {
   });
   const [availableTopics, setAvailableTopics] = useState<Record<string, Array<{ id: string; title: string; cadence_days: number }>>>({});
   const [selectedPriorities, setSelectedPriorities] = useState<('high' | 'medium' | 'low')[]>(['high']);
+  const [uploadedConfig, setUploadedConfig] = useState<BulkIngestionConfig | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Load available topics on component mount
     const topics = bulkManager.getAvailableTopics();
     setAvailableTopics(topics);
   }, [bulkManager]);
+
+  const handleConfigUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const configText = e.target?.result as string;
+        const config: BulkIngestionConfig = JSON.parse(configText);
+        
+        // Validate basic structure
+        if (!config.topics || !Array.isArray(config.topics)) {
+          throw new Error('Invalid configuration: missing topics array');
+        }
+        
+        if (!config.whitelist_sources || !Array.isArray(config.whitelist_sources)) {
+          throw new Error('Invalid configuration: missing whitelist_sources array');
+        }
+
+        console.log(`📋 Loaded configuration with ${config.topics.length} topics`);
+        setUploadedConfig(config);
+        
+        // Update BulkIngestionManager with uploaded config
+        bulkManager.updateConfig(config);
+        
+        // Update available topics display
+        const priorityCounts = config.topics.reduce((acc, topic) => {
+          acc[topic.priority] = (acc[topic.priority] || []);
+          acc[topic.priority].push({
+            id: topic.id,
+            title: topic.title,
+            cadence_days: topic.update_cadence_days
+          });
+          return acc;
+        }, {} as Record<string, Array<{ id: string; title: string; cadence_days: number }>>);
+        
+        setAvailableTopics(priorityCounts);
+        
+        alert(`✅ Configuration loaded successfully!\n📊 Found ${config.topics.length} topics\n🎯 Priorities: High(${priorityCounts.high?.length || 0}), Medium(${priorityCounts.medium?.length || 0}), Low(${priorityCounts.low?.length || 0})`);
+        
+      } catch (error) {
+        console.error('Failed to parse configuration:', error);
+        alert(`❌ Failed to load configuration: ${(error as Error).message}`);
+      }
+    };
+    
+    reader.readAsText(file);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
 
   const startBulkIngestion = async (priorities: ('high' | 'medium' | 'low')[] = ['high']) => {
     setProgress({
@@ -123,6 +178,35 @@ export const BulkEditorialIngestion: React.FC = () => {
           Automatically process all German tax law topics using the comprehensive editorial configuration.
           This will fetch authoritative sources, extract rules, and generate user-facing content.
         </p>
+
+        {/* Configuration Upload */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="font-medium text-blue-900 mb-3">📁 Upload Custom Configuration</h3>
+          <p className="text-sm text-blue-700 mb-3">
+            Upload your own JSON configuration file to process custom topics and sources.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleConfigUpload}
+              className="hidden"
+            />
+            <button
+              onClick={triggerFileUpload}
+              disabled={progress.isRunning}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              📤 Upload JSON Config
+            </button>
+            {uploadedConfig && (
+              <div className="text-sm text-green-700 bg-green-50 px-3 py-1 rounded">
+                ✅ Loaded: {uploadedConfig.topics.length} topics (v{uploadedConfig.version})
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Available Topics Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

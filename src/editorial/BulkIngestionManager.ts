@@ -74,9 +74,17 @@ export class BulkIngestionManager {
   private editorialManager: EditorialManager;
   private config: BulkIngestionConfig;
 
-  constructor() {
+  constructor(customConfig?: BulkIngestionConfig) {
     this.editorialManager = new EditorialManager();
-    this.config = editorialConfig as BulkIngestionConfig;
+    this.config = customConfig || (editorialConfig as any);
+  }
+
+  /**
+   * Update configuration dynamically
+   */
+  updateConfig(newConfig: BulkIngestionConfig): void {
+    this.config = newConfig;
+    console.log(`📋 Updated configuration: ${newConfig.topics.length} topics, version ${newConfig.version}`);
   }
 
   /**
