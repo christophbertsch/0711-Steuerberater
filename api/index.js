@@ -1258,37 +1258,84 @@ app.get('/api/documents/:id/file', async (req, res) => {
 app.delete('/api/documents/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(`🗑️ Deleting document with ID: ${id}`);
     
+    let deletedFromQdrant = false;
+    let deletedFromDatabase = false;
+    let deletedFromMemory = false;
+    
+    // Try to delete from Qdrant first
+    if (qdrant) {
+      try {
+        console.log('🔍 Attempting to delete from Qdrant...');
+        // Try direct API call to Qdrant
+        const response = await fetch(`http://34.40.104.64:6333/collections/${QDRANT_COLLECTION}/points/delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            points: [parseInt(id)]
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log('❌ Qdrant error response:', errorText);
+          throw new Error(`Qdrant delete failed: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+        deletedFromQdrant = true;
+        console.log('✅ Successfully deleted from Qdrant');
+      } catch (qdrantError) {
+        console.error('❌ Qdrant deletion failed:', qdrantError);
+        // Continue with other deletions even if Qdrant fails
+      }
+    }
+    
+    // Delete from database
     if (db) {
       try {
         await db.deleteDocument(parseInt(id));
-        
-        // Remove from in-memory storage
-        const index = documents.findIndex(doc => doc.id === id);
-        if (index !== -1) {
-          documents.splice(index, 1);
-        }
-        delete documentAnalyses[id];
-        
-        res.json({ message: 'Document deleted successfully' });
+        deletedFromDatabase = true;
+        console.log('✅ Successfully deleted from database');
       } catch (dbError) {
-        console.error('Database error deleting document:', dbError);
-        res.status(500).json({ error: 'Failed to delete document: ' + dbError.message });
+        console.error('❌ Database deletion failed:', dbError);
+        // Continue with memory deletion
       }
-    } else {
-      // Fallback to in-memory deletion
-      const index = documents.findIndex(doc => doc.id === id);
-      if (index === -1) {
-        return res.status(404).json({ error: 'Document not found' });
-      }
-      
-      documents.splice(index, 1);
-      delete documentAnalyses[id];
-      
-      res.json({ message: 'Document deleted successfully' });
     }
+    
+    // Remove from in-memory storage
+    const index = documents.findIndex(doc => doc.id === id);
+    if (index !== -1) {
+      documents.splice(index, 1);
+      deletedFromMemory = true;
+      console.log('✅ Successfully deleted from memory');
+    }
+    delete documentAnalyses[id];
+    
+    // Determine response based on what was successfully deleted
+    const deletionResults = {
+      qdrant: deletedFromQdrant,
+      database: deletedFromDatabase,
+      memory: deletedFromMemory
+    };
+    
+    if (deletedFromQdrant || deletedFromDatabase || deletedFromMemory) {
+      console.log('✅ Document deletion completed:', deletionResults);
+      res.json({ 
+        message: 'Document deleted successfully',
+        deletedFrom: deletionResults
+      });
+    } else {
+      console.log('❌ Document not found in any storage');
+      res.status(404).json({ 
+        error: 'Document not found',
+        searchedIn: deletionResults
+      });
+    }
+    
   } catch (error) {
-    console.error('Delete error:', error);
+    console.error('❌ Delete error:', error);
     res.status(500).json({ error: 'Delete failed: ' + error.message });
   }
 });
