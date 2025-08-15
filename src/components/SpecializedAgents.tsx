@@ -608,7 +608,7 @@ const SpecializedAgents: React.FC = () => {
                 </div>
                 
                 <div className="bg-red-50 p-3 rounded-lg">
-                  <div className="text-sm text-red-600 font-medium">Lohnsteuer</div>
+                  <div className="text-sm text-red-600 font-medium">Einkommensteuer/Lohnsteuer</div>
                   <div className="text-lg font-bold text-red-800">
                     €{comprehensiveData.tax?.toLocaleString() || 'N/A'}
                   </div>

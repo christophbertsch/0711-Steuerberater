@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Upload, Calculator, Search, Brain, FileCheck, Users, Database } from 'lucide-react';
+import { Upload, Calculator, Search, Brain, FileCheck, Users, Database, Receipt } from 'lucide-react';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentAnalysis from './components/DocumentAnalysis';
 import TaxDeclarationGenerator from './components/TaxDeclarationGenerator';
 import TaxResearch from './components/TaxResearch';
 import SpecializedAgents from './components/SpecializedAgents';
 import QdrantManager from './components/QdrantManager';
+import InvoiceAnalyzer from './components/InvoiceAnalyzer';
 import { Document } from './types';
 import { documentService } from './services/documentService';
 
@@ -36,6 +37,7 @@ function App() {
     { id: 'analysis', label: 'KI-Analyse', icon: Brain },
     { id: 'research', label: 'Steuerforschung 2024', icon: Search },
     { id: 'agents', label: 'Spezialisierte Agenten', icon: Users },
+    { id: 'invoices', label: 'Rechnungsanalyse', icon: Receipt },
     { id: 'declaration', label: 'Steuererklärung', icon: Calculator },
     { id: 'storage', label: 'Qdrant Verwaltung', icon: Database },
   ];
@@ -100,6 +102,10 @@ function App() {
         
         {activeTab === 'agents' && (
           <SpecializedAgents />
+        )}
+        
+        {activeTab === 'invoices' && (
+          <InvoiceAnalyzer />
         )}
         
         {activeTab === 'declaration' && (
