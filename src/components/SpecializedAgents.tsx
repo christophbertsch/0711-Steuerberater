@@ -145,6 +145,11 @@ const SpecializedAgents: React.FC = () => {
           const numStr = match[1].replace(/\./g, '').replace(',', '.');
           const num = parseFloat(numStr);
           if (!isNaN(num) && num > 0) {
+            // Filter out obviously wrong values (like single digits for salary)
+            if (label === 'Salary' && num < 1000) {
+              console.log(`⚠️ ${label} value too small (${Math.round(num)}), continuing search...`);
+              continue;
+            }
             console.log(`✅ ${label} extracted:`, Math.round(num));
             return Math.round(num);
           }
@@ -154,34 +159,39 @@ const SpecializedAgents: React.FC = () => {
       return 0;
     };
 
-    // German Lohnsteuer patterns - more comprehensive
+    // German Lohnsteuer patterns - ordered by specificity (most specific first)
     const salaryPatterns = [
-      // Standard patterns
+      // Most specific patterns first (from document analysis)
+      /Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      /Der\s+Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      /von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      // Standard specific patterns
       /Bruttoarbeitslohn[:\s]*([0-9.,]+)/i,
       /Bruttolohn[:\s]*([0-9.,]+)/i,
       /Jahresbrutto[:\s]*([0-9.,]+)/i,
       /Gesamtbrutto[:\s]*([0-9.,]+)/i,
       /Bruttoverdienst[:\s]*([0-9.,]+)/i,
-      /Brutto[:\s]*([0-9.,]+)/i,
       /Arbeitslohn[:\s]*([0-9.,]+)/i,
       /Lohn[:\s]*([0-9.,]+)/i,
       /Gehalt[:\s]*([0-9.,]+)/i,
       /Einkommen[:\s]*([0-9.,]+)/i,
-      // Pattern for Euro amounts
-      /([0-9.,]+)\s*€?\s*Brutto/i,
+      // Generic patterns with Euro
       /([0-9.,]+)\s*EUR?\s*Brutto/i,
-      // Specific patterns based on the document analysis
+      // Generic "beträgt" pattern (less specific, so later)
       /beträgt\s+([0-9.,]+)\s*Euro/i,
-      /von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i,
-      /Bruttoarbeitslohn\s+von\s+[A-Za-z\s]+\s+beträgt\s+([0-9.,]+)\s*Euro/i
+      // Most generic patterns last (these were causing the "3" match)
+      /Brutto[:\s]*([0-9.,]+)/i,
+      /([0-9.,]+)\s*€?\s*Brutto/i
     ];
 
     const taxPatterns = [
-      /Lohnsteuer[:\s]*([0-9.,]+)/i,
-      /Einkommensteuer[:\s]*([0-9.,]+)/i,
-      // Specific patterns from document analysis
+      // Most specific patterns first (from document analysis)
+      /Die\s+einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
       /einbehaltene\s+Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
-      /Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i
+      /Lohnsteuer\s+beträgt\s+([0-9.,]+)\s*Euro/i,
+      // Standard patterns
+      /Lohnsteuer[:\s]*([0-9.,]+)/i,
+      /Einkommensteuer[:\s]*([0-9.,]+)/i
     ];
 
     const socialInsurancePatterns = [
