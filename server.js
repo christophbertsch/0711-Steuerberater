@@ -8,6 +8,8 @@ import OpenAI from 'openai';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { put, del, list } from '@vercel/blob';
+// import pdfParse from 'pdf-parse'; // Commented out due to module issues
+import Tesseract from 'tesseract.js';
 
 // Load environment variables
 dotenv.config();
@@ -71,27 +73,78 @@ let documentAnalyses = {};
 // Helper function to extract text from different file types
 async function extractTextFromFile(blobUrl, mimeType, fileName, fileSize) {
   try {
+    console.log(`Extracting text from: ${fileName} (${mimeType})`);
+    
     if (mimeType === 'application/pdf') {
-      // For demonstration, use file name and size as content
-      return `PDF Document: ${fileName}, Size: ${fileSize} bytes. This appears to be a tax-related document based on the filename.`;
+      try {
+        // Fetch PDF content from Vercel Blob
+        const response = await fetch(blobUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        console.log(`PDF buffer size: ${buffer.length} bytes`);
+        
+        // Extract text using pdf-parse with dynamic import
+        const pdfParse = (await import('pdf-parse')).default;
+        const data = await pdfParse(buffer);
+        const extractedText = data.text.trim();
+        
+        console.log(`PDF text extracted: ${extractedText.length} characters`);
+        
+        if (extractedText && extractedText.length > 10) {
+          return `PDF Document: ${fileName}\n\nExtracted Content:\n${extractedText}`;
+        } else {
+          console.log('PDF text extraction yielded insufficient content, trying fallback');
+          return `PDF Document: ${fileName}\n\nNote: PDF appears to be image-based or encrypted. Consider using OCR for scanned documents.`;
+        }
+      } catch (pdfError) {
+        console.error('PDF extraction error:', pdfError);
+        return `PDF Document: ${fileName}\n\nError: Could not extract text from PDF. File may be corrupted, encrypted, or image-based.`;
+      }
     } else if (mimeType.startsWith('image/')) {
-      // For images, you would use OCR like Tesseract
-      return 'OCR text extraction would be implemented here';
+      try {
+        // Fetch image content from Vercel Blob
+        const response = await fetch(blobUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        console.log(`Image buffer size: ${buffer.length} bytes`);
+        
+        // Use Tesseract for OCR
+        const { createWorker } = Tesseract;
+        const worker = await createWorker('deu+eng');
+        
+        const { data: { text } } = await worker.recognize(buffer);
+        await worker.terminate();
+        
+        const extractedText = text.trim();
+        console.log(`OCR text extracted: ${extractedText.length} characters`);
+        
+        if (extractedText && extractedText.length > 5) {
+          return `Image Document: ${fileName}\n\nOCR Extracted Content:\n${extractedText}`;
+        } else {
+          return `Image Document: ${fileName}\n\nOCR failed to extract readable text from this image.`;
+        }
+      } catch (ocrError) {
+        console.error('OCR extraction error:', ocrError);
+        return `Image Document: ${fileName}\n\nError: Could not perform OCR on image.`;
+      }
     } else if (mimeType.includes('xml') || fileName.endsWith('.xml')) {
       // Fetch content from Vercel Blob
       const response = await fetch(blobUrl);
       const content = await response.text();
-      return content;
+      return `XML Document: ${fileName}\n\nContent:\n${content}`;
     } else if (mimeType.includes('text')) {
       // Fetch content from Vercel Blob
       const response = await fetch(blobUrl);
       const content = await response.text();
-      return content;
+      return `Text Document: ${fileName}\n\nContent:\n${content}`;
     }
-    return '';
+    
+    return `Unsupported Document: ${fileName}\n\nFile type ${mimeType} is not supported for text extraction.`;
   } catch (error) {
     console.error('Error extracting text:', error);
-    return '';
+    return `Error: Could not extract text from ${fileName}. ${error.message}`;
   }
 }
 
